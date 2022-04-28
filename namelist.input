@@ -1,0 +1,63 @@
+&share
+ mDim = 50, ! 集合成员
+ nHour = 96, ! 多少小时
+ begTime = '2020070100', ! 开始时间
+ siteFileName = '../site.txt', ! 站点文件，读取经纬度信息
+ outFileName = 'adj_naqp.csv'
+/
+
+&source ! 数据源
+ obsInfo%fileName = '/archive/share/Data/base/senvi/2019/obs_envi_%Y%m%d%H.txt',
+ obsInfo%varNames = 'PM25', 'PMC', 'CO', 'NO2', 'SO2', 'O3', ! 固定顺序
+ obsInfo%error = 0.05, 0.05, 0.02, 0.02, 0.02, 0.04
+
+ mdlInfo%fileName = '../data/naqp/mem[FLAG]/station_forecast_normal_hourly_naqp_d01_%Y%m%d.txt',
+ mdlInfo%varNames = 'PM25', 'PMC', 'CO', 'NO2', 'SO2', 'O3', ! 和观测一样的顺序
+
+ adjInfo%fileName = '../data/perb/adj_[FLAG].csv',
+ adjInfo%varNames = 'PM25', 'PMC', 'CO', 'NOx', 'SO2', 'NMVOC', 'NH3', ! 固定顺序
+/
+
+&default
+ nTime = 6 ! 多少小时求平均：1, 2, 4, 6, 12, 24
+ localisation = 2 ! 距地化方案: 1(检索有限区域里的观测), 2(影响随距离衰减)
+ delta = 81. ! 网格分辨率: km
+ radius = 300.  ! 局地化检索半径: km
+ city = .true. ! 城市平均
+ lowRank = .true. ! 误差空间降维
+ inflation = .ture. ! multiplicative inflation
+/
+
+&custom ! 算法参数
+ opts(1)%name = 'PM25'
+ opts(1)%varNames = 'PM25' ! PM25: emis => conc
+ opts(1)%ratio = 1., ! 默认为1.
+ opts(1)%nTime = 24
+
+ opts(2)%name = 'PMC'
+ opts(2)%varNames = 'PMC' ! PMC: emis => conc
+ opts(2)%nTime = 24
+
+ opts(3)%name = 'CO'
+ opts(3)%varNames = 'CO' ! CO: emis => conc
+ opts(3)%nTime = 24
+
+ opts(4)%name = 'NOx'
+ opts(4)%varNames = 'NO2', 'O3', 'PM25' ! NOx: emis => conc
+ opts(4)%ratio = 1., 0.5, 0.2
+ opts(4)%nTime = 4
+
+ opts(5)%name = 'SO2'
+ opts(5)%varNames = 'SO2', 'PM25' ! NOx: emis => conc
+ opts(5)%ratio = 1., 0.5
+ opts(5)%nTime = 6
+
+ opts(6)%name = 'NMVOC'
+ opts(6)%varNames = 'O3', 'PM25' ! NMVOC: emis => conc
+ opts(6)%ratio = 1., 0.2
+ opts(6)%nTime = 4
+ 
+ opts(7)%name = 'NH3'
+ opts(7)%varNames = 'PM25' ! NH3: emis => conc
+ opts(7)%ratio = 0.5
+/
