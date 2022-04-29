@@ -146,6 +146,8 @@ module mod_csvio
         if ( data1d(2) /= FILLVALUE .and. data1d(1) /= FILLVALUE) data1d(2) = data1d(2) - data1d(1)
         ! 质控
         where(data1d > 1000.) data1d = FILLVALUE
+        ! CO: mg => ug
+        data1d(3) = data1d(3)*1000.
         where(data1d <  0.) data1d = FILLVALUE
         where(data1d == 0.) data1d = 0.01
 

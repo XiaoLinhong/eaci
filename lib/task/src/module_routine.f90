@@ -32,7 +32,7 @@ module mod_routine
 
         ! local Vars
         integer :: i, j, k, ii, idx, nn
-        integer :: beg, end
+        integer :: iBeg, iEnd
         real :: length ! 特征长度，KM
         integer :: oDim, mDim, nVar, nPoint, nSlice, nSite
         integer :: nVaildObs, nVaildMdl, nVaildMean
@@ -64,29 +64,29 @@ module mod_routine
         R = 0.
         idx = 0
         ! 各个时段*各个变量*各个站点
-        do i = 1, nSlice ! 时间片段
-            beg = (i-1)*opt%nTime+1
-            end = i*opt%nTime
+        do k = 1, nPoint
             do j = 1, opt%nVar
-                do k = 1, nPoint
+                do i = 1, nSlice ! 时间片段
+                    iBeg = (i-1)*opt%nTime+1
+                    iEnd = i*opt%nTime
                     idx = idx + 1
                     ! 处理观测空间
                     if (opt%city) then ! 需要求城市平均
-                        nn = 0
+                        nn = 0 ! 每个城市有多少个站点
                         do ii = 1, nSite
-                            if ( patch%cityIds(ii) == patch%dcode(k) ) then
+                            if ( patch%cityIds(ii) == patch%dcode(k) ) then ! 通过城市编号匹配
                                 nn = nn + 1
                                 tmp1d(nn) = patch%ratio(ii)
-                                obs3d(nn, :, :) = obsData( opt%idxs(j), patch%idx(ii), beg:end, :)
-                                mdl4d(nn, :, :, :) = mdlData( opt%idxs(j), patch%idx(ii), beg:end, :, :)
+                                obs3d(nn, :, :) = obsData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :)
+                                mdl4d(nn, :, :, :) = mdlData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :, :)
                             end if
                         end do
                         factor = opt%ratio(j)*minval(tmp1d(1:nn)) ! 城市中最近一个观测点的距离化系数作为代表系数
-                    else
+                    else ! 不需要求城市平均
                         factor = opt%ratio(j)*patch%ratio(k)
                         nn = 1
-                        obs3d(nn, :, :) = obsData( opt%idxs(j), patch%idx(k), beg:end, :)
-                        mdl4d(nn, :, :, :) = mdlData( opt%idxs(j), patch%idx(k), beg:end, :, :)
+                        obs3d(nn, :, :) = obsData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :)
+                        mdl4d(nn, :, :, :) = mdlData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :, :)
                     end if
 
                     ! 观测平均值
@@ -129,12 +129,11 @@ module mod_routine
 
         deallocate(obs3d, mdl4d, tmp1d)
 
-        if (opt%inflation ) HP = get_lamda(innov, HP, R)*HP
+        if (opt%inflation ) HP = get_lambda(innov, HP, R)*HP
 
     end subroutine get_this_city_date
 
-
-    real function get_lamda(innov, HP, R) result(lamda)
+    real function get_lambda(innov, HP, R) result(lambda)
 
         implicit none
 
@@ -147,12 +146,11 @@ module mod_routine
         integer :: i
         real :: denominator
         real, dimension(1, 1) :: numerator
-        ! real :: numerator
         real, dimension(size(innov), 1) :: MM !R^-1/2 * (y_o - Hx_b)
         real, dimension(size(innov), size(innov)) :: RR ! oDim, oDim
         real, dimension(size(HP, 2), size(HP, 2)) :: PP ! mDim, mDim
 
-        lamda = 1.
+        lambda = 1.
         ! 分子
         RR = 0.
         do i = 1, size(innov)
@@ -166,14 +164,17 @@ module mod_routine
             RR(i, i) = 1./R(i,i)
         end do
         PP = matmul(matmul(transpose(HP), RR), HP)
+        ! trace
         denominator = 0.
         do i = 1, size(HP, 2)
             denominator = denominator + PP(i,i)
         end do
         if (denominator <= 0.) return
-        lamda = (numerator(1, 1)/denominator)**0.5
-        if (lamda<1.) lamda = 1.
-        if (lamda>10.) lamda = 10.
-    end function get_lamda
+        ! lambda
+        lambda = (numerator(1, 1)/denominator)**0.5
+        if (lambda<1.) lambda = 1.
+        if (lambda>10.) lambda = 10.
+
+    end function get_lambda
 
 end module mod_routine

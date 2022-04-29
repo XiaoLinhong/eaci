@@ -266,7 +266,7 @@ module mod_tool
 
         a = acos( sin(phi1)*sin(phi2) + cos(phi1)*cos(phi2) * cos(deltaLamda) ) * EARTH_RADIUS_M
         d = int(a/1000.) ! in KM
-        if (d < 1 ) d = 1 ! 
+        if (d < 1 ) d = 1
     end function cal_distance
 
 end module mod_tool

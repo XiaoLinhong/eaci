@@ -6,6 +6,7 @@ module mod_cfg
 
     use mod_tool, only : get_idx_in_str_list
 
+    use string, only : to_str
     use flogger, only : log_error, log_notice
 
     implicit none
@@ -105,7 +106,7 @@ module mod_cfg
         ! custom: algorithm
         read(iHandle, nml=custom)
         p%nVar = count(opts%name /= "-")
-        do i = 1, p%nVar
+        do i = 1, p%adjInfo%nVar
             if (opts(i)%nTime == 0) opts(i)%nTime = nTime
             if (opts(i)%delta == 0.)  opts(i)%delta = delta
             if (opts(i)%radius == 0.)  opts(i)%radius = radius
@@ -114,26 +115,36 @@ module mod_cfg
             if (.not. opts(i)%inflation) opts(i)%inflation = inflation
             if (opts(i)%localisation == 0) opts(i)%localisation = localisation
         end do
-        p%opts = opts
 
         ! 数据之间的变量映射关系
+        idx = 0
         do i = 1, p%adjInfo%nVar
             ! 输出调优系数变量和排放变量的对应关系
-            p%opts(i)%idx = get_idx_in_str_list(p%opts(i)%name, p%obsInfo%varNames(1:p%obsInfo%nVar) )
-            p%opts(i)%nVar = count(p%opts(i)%varNames /= "-") ! 浓度变量
-            do j = 1, p%opts(i)%nVar ! 每个调优系数变量对应的浓度变量，在obs中的位置
-                p%opts(i)%idxs(j) = get_idx_in_str_list(p%opts(i)%varNames(j), p%obsInfo%varNames(1:p%obsInfo%nVar) )
-            end do
+            if (opts(i)%name /= "-") then
+                idx = idx + 1
+                p%opts(idx) = opts(i)
+                p%opts(idx)%idx = get_idx_in_str_list(opts(i)%name, p%adjInfo%varNames(1:p%adjInfo%nVar))
+                p%opts(idx)%nVar = count(opts(i)%varNames /= "-") ! 浓度变量
+                do j = 1, p%opts(idx)%nVar ! 每个调优系数变量对应的浓度变量，在obs中的位置
+                    p%opts(idx)%idxs(j) = get_idx_in_str_list(opts(i)%varNames(j), p%obsInfo%varNames(1:p%obsInfo%nVar) )
+                end do
+            end if
         end do
 
         ! 诊断
         if (p%debug) then
-            do i = 1, p%adjInfo%nVar
-                call log_notice(p%adjInfo%varNames(i))
-                write(*, '(10A10)') (trim(p%opts(i)%varNames(j)), j = 1, p%opts(i)%nVar)
-                write(*, '(10I10)') p%opts(i)%idxs(1:p%opts(i)%nVar)
-                write(*, '(10F10.2)') p%opts(i)%ratio(1:p%opts(i)%nVar)
+            call log_notice('===================================================================')
+            write(*, '(A, 10A10)') 'conc: ', (trim(p%obsInfo%varNames(j)), j = 1, p%obsInfo%nVar)
+            write(*, '(A, 10A10)') 'emis: ', (trim(p%adjInfo%varNames(j)), j = 1, p%adjInfo%nVar)
+            write(*, '(15A10)') 'emis', 'emis-idx', 'conc', 'conc-idx', 'ratio', 'radius', 'nTime'
+            do i = 1, p%nVar
+                do j = 1, p%opts(i)%nVar
+                    write(*, '(15A10)') trim(p%opts(i)%name), to_str(p%opts(i)%idx), &
+                    trim(p%opts(i)%varNames(j)), to_str(p%opts(i)%idxs(j)), to_str(p%opts(i)%ratio(j), 2, 3) &
+                    , to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%nTime)
+                end do
             end do
+            call log_notice('===================================================================')
         end if
 
     end function get_cfg
