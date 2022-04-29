@@ -7,6 +7,7 @@ MESSAGE( STATUS "test?: ${TEST_FLAGS}")
 # 编译选项
 if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
   # 累积编译选项
+  # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -Ofast -qopenmp")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -Ofast")
 
   if (CMAKE_BUILD_TYPE MATCHES Debug) #

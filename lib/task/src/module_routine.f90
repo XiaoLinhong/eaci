@@ -34,6 +34,7 @@ module mod_routine
         integer :: i, j, k, ii, idx, nn
         integer :: iBeg, iEnd
         real :: length ! 特征长度，KM
+        real :: decay ! 距离衰减系数
         integer :: oDim, mDim, nVar, nPoint, nSlice, nSite
         integer :: nVaildObs, nVaildMdl, nVaildMean
         real :: thisObs, thisMdl, thisMean, factor
@@ -41,6 +42,7 @@ module mod_routine
         real, dimension(:, :, :), allocatable :: obs3d
         real, dimension(:, :, :, :), allocatable :: mdl4d
 
+        decay = 1.
         nSlice = size(obsData, 3)/opt%nTime ! 一天中时间分段
         nSite = size(patch%idx)
         mDim = size( mdlData, 5 )
@@ -81,13 +83,15 @@ module mod_routine
                                 mdl4d(nn, :, :, :) = mdlData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :, :)
                             end if
                         end do
-                        factor = opt%ratio(j)*minval(tmp1d(1:nn)) ! 城市中最近一个观测点的距离化系数作为代表系数
+                        ! 城市中最近一个观测点的距离化系数作为代表系数
+                        if (opt%localisation == 2) decay = minval(tmp1d(1:nn)) 
                     else ! 不需要求城市平均
-                        factor = opt%ratio(j)*patch%ratio(k)
+                        if (opt%localisation == 2) decay = patch%ratio(k)
                         nn = 1
                         obs3d(nn, :, :) = obsData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :)
                         mdl4d(nn, :, :, :) = mdlData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :, :)
                     end if
+                    factor = opt%ratio(j)*decay
 
                     ! 观测平均值
                     thisObs = 0.
@@ -101,9 +105,7 @@ module mod_routine
                         R(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差
                         R(idx, idx) = R(idx, idx) + (opt%delta/length)**0.5*R(idx, idx)/2. ! 代表性误差
                         ! sqr(delta/L)*err, L为代表性误差特征长度, err是估计出来的
-                        if (opt%localisation == 2) then
-                            R(idx, idx) = R(idx, idx) / factor
-                        end if
+                        R(idx, idx) = R(idx, idx) / factor ! 局地化
                     end if
 
                     ! 集合平均

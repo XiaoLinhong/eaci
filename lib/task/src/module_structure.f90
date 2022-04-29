@@ -23,6 +23,7 @@ module mod_structure
     type optMeta ! 排放数据源描述信息
         real :: delta = 0.
         real :: radius = 0.
+        real :: length = 0.
         integer :: nTime = 0
         integer :: localisation = 0
         logical :: city = .false.

@@ -21,17 +21,18 @@ module mod_neighbour
 
     contains
 
-    subroutine scan(self, radius, cityLon, cityLat, siteInfo)
+    subroutine scan(self, radius, length, cityLon, cityLat, siteInfo)
         ! 需要哪些点位？
         implicit none
         class(scanner), intent(inout) :: self
         real, intent(in) :: radius
+        real, intent(in) :: length
         real, intent(in) :: cityLon
         real, intent(in) :: cityLat
         type(pointInfo),intent(in) :: siteInfo
 
         ! local
-        integer :: d
+        real :: d
         integer :: i, j, idx
         type(hash) :: siteLocs
         type(hash) :: distance
@@ -49,7 +50,7 @@ module mod_neighbour
             d = cal_distance(cityLon, cityLat, siteInfo%lons(i), siteInfo%lats(i))
             if (d < radius) then
                 call siteLocs%set(siteInfo%ids(i), i)
-                call distance%set(siteInfo%ids(i), d)
+                call distance%set(siteInfo%ids(i), int(d)) ! 必须是整形
             end if
         end do
 
@@ -63,7 +64,8 @@ module mod_neighbour
             if ( idx > 0 ) then
                 j = j + 1
                 self%idx(j) = idx
-                self%ratio(j) = 1./distance%get(thisId)**0.5 ! 这个公式合适不
+                ! self%ratio(j) = 1./distance%get(thisId)**0.5 ! 这个公式合适不
+                self%ratio(j) = exp( - distance%get(thisId)**0.2/(2*length**2) )
                 self%cityIds(j) = thisId(1:6) ! 用来城市平均, 六位的城市编码
             end if
         end do

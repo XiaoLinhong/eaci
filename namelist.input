@@ -22,8 +22,9 @@
 &default
  nTime = 6 ! 多少小时求平均：1, 2, 4, 6, 12, 24
  localisation = 2 ! 距地化方案: 1(检索有限区域里的观测), 2(影响随距离衰减)
+ radius = 500. ! 局地化检索半径: km
+ length = 300. ! 去相关化长度 decay=exp(-r**2/(2*length**2)), when r=length, decay=0.6
  delta = 81. ! 网格分辨率: km
- radius = 500.  ! 局地化检索半径: km
  city = .true. ! 城市平均
  lowRank = .true. ! 误差空间降维
  inflation = .true. ! multiplicative inflation !开启之后会更加稳健
@@ -47,7 +48,8 @@
  opts(4)%varNames = 'NO2', 'O3', 'PM25', ! NOx: emis => conc
  opts(4)%ratio = 1.0, 0.3, 0.2
  opts(4)%nTime = 4
- opts(4)%radius = 200.
+ opts(4)%radius = 300.
+ opts(4)%length = 200.
 
  opts(5)%name = 'SO2'
  opts(5)%varNames = 'SO2', 'PM25' ! NOx: emis => conc
@@ -61,5 +63,5 @@
  
  opts(7)%name = 'NH3'
  opts(7)%varNames = 'PM25' ! NH3: emis => conc
- opts(7)%ratio = 0.5
+ opts(7)%ratio = 0.2
 /

@@ -22,7 +22,15 @@ module mod_enkf
         real, dimension(size(x_b, 1), size(innov)) :: gainMatrix ! 1, oDim
 
         ! Evaluate RR = (R + HBH')
-        RR = R + matmul(HP, transpose(HP))
+        ! RR = R + matmul(HP, transpose(HP))
+        RR = R
+        oDim = size(HP, 1)
+        mDim = size(HP, 2)
+        call sgemm('n','t', oDim, oDim, mDim, &
+                               1.0, HP, oDim, &
+                                    HP, oDim, &
+                               1.0, RR, oDim)
+
         if (.not. lowRank) RR = get_penrose_inv( RR )
         ! 特征值分解: R -> Z*eig*Z` 
         ! 可以对矩阵进行降维度: (R + HBH')^-1 = (R + HP(HP)')^-1 = VE^-1V'
@@ -85,8 +93,8 @@ module mod_enkf
         integer neig, INFO
         real, external :: DLAMCH
 
-        RR = R
-        abstol=2.0*DLAMCH('S')
+        RR = dble(R)
+        abstol = 2.0*DLAMCH('S')
         call dsyevx('V', 'A', 'U', oDim, RR, oDim, ddum, ddum, 1, 1, abstol, &
                     neig, EE, ZZ, oDim, FWORK, 8*oDim, IWORK, IFAIL, INFO )
         if (INFO /= 0) stop 'dsyevx ierr'

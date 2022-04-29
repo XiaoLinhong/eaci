@@ -242,7 +242,7 @@ module mod_tool
         end do
     end function
 
-    integer function cal_distance(lon1, lat1, lon2, lat2) result(d)
+    real function cal_distance(lon1, lat1, lon2, lat2) result(d)
         ! haversine’ formula to calculate the great-circle distance between two points
         implicit none
         real, intent(in) :: lon1
@@ -265,8 +265,7 @@ module mod_tool
         deltaLamda = (lon2-lon1) * RAD_PER_DEG
 
         a = acos( sin(phi1)*sin(phi2) + cos(phi1)*cos(phi2) * cos(deltaLamda) ) * EARTH_RADIUS_M
-        d = int(a/1000.) ! in KM
-        if (d < 1 ) d = 1
+        d = a/1000. ! in KM
     end function cal_distance
 
 end module mod_tool

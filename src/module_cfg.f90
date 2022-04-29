@@ -55,20 +55,21 @@ module mod_cfg
         type(csvMeta) :: adjInfo
 
         ! algorithm
-        integer :: nTime
-        integer :: localisation
-        real :: delta
-        real :: radius
+        integer :: nTime = 24
+        integer :: localisation = 1
+        real :: delta = 27.
+        real :: radius = 500.
+        real :: length = 100.
         logical :: city = .false.
         logical :: lowRank = .false.
         logical :: inflation = .false.
-    
+
         ! enkf
         type(optMeta), dimension(MAXVAR) :: opts
 
         NAMELIST /share/ debug, mDim, nHour, begTime, siteFileName, outFileName
         NAMELIST /source/ obsInfo, mdlInfo, adjInfo
-        NAMELIST /default/ nTime, localisation, delta, radius, city, lowRank, inflation
+        NAMELIST /default/ nTime, localisation, delta, radius, length, city, lowRank, inflation
 
         NAMELIST /custom/ opts
 
@@ -110,6 +111,7 @@ module mod_cfg
             if (opts(i)%nTime == 0) opts(i)%nTime = nTime
             if (opts(i)%delta == 0.)  opts(i)%delta = delta
             if (opts(i)%radius == 0.)  opts(i)%radius = radius
+            if (opts(i)%length == 0.)  opts(i)%length = length
             if (.not. opts(i)%city)  opts(i)%city = city
             if (.not. opts(i)%lowRank)  opts(i)%lowRank = lowRank
             if (.not. opts(i)%inflation) opts(i)%inflation = inflation
@@ -136,12 +138,12 @@ module mod_cfg
             call log_notice('===================================================================')
             write(*, '(A, 10A10)') 'conc: ', (trim(p%obsInfo%varNames(j)), j = 1, p%obsInfo%nVar)
             write(*, '(A, 10A10)') 'emis: ', (trim(p%adjInfo%varNames(j)), j = 1, p%adjInfo%nVar)
-            write(*, '(15A10)') 'emis', 'emis-idx', 'conc', 'conc-idx', 'ratio', 'radius', 'nTime'
+            write(*, '(15A10)') 'emis', 'emis-idx', 'conc', 'conc-idx', 'ratio', 'radius', 'nTime', 'length'
             do i = 1, p%nVar
                 do j = 1, p%opts(i)%nVar
                     write(*, '(15A10)') trim(p%opts(i)%name), to_str(p%opts(i)%idx), &
                     trim(p%opts(i)%varNames(j)), to_str(p%opts(i)%idxs(j)), to_str(p%opts(i)%ratio(j), 2, 3) &
-                    , to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%nTime)
+                    , to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%nTime), to_str(p%opts(i)%length, 2, 9)
                 end do
             end do
             call log_notice('===================================================================')
