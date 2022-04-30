@@ -123,7 +123,8 @@ module mod_enkf
         sum1 = 0.
         sum2 = sum( eigenvalues )
         do i = oDim, 1, -1
-            if (sum1/sum2 < 0.99 ) then
+            !if (sum1/sum2 < 0.99 ) then
+            if (eigenvalues(i)/sum2 >= 0.01 ) then
                 sum1 = sum1 + eigenvalues(i)
                 EE(i, i) = 1./eigenvalues(i)
             else
