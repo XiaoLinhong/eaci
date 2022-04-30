@@ -138,12 +138,12 @@ module mod_csvio
         real, dimension(:), intent(inout) :: data1d
 
         ! 沙尘
-        if (data1d(2) > 200 .and. data1d(1) < 100) data1d(1:2) = FILLVALUE
-        if (data1d(2) > 400 .and. data1d(1) < 150) data1d(1:2) = FILLVALUE
+        if (data1d(2) > 200 .and. data1d(1) < 100) data1d(2) = FILLVALUE
+        if (data1d(2) > 400 .and. data1d(1) < 150) data1d(2) = FILLVALUE
         ! 浓度倒挂
-        if (data1d(2) < data1d(1)) data1d(1:2) = FILLVALUE
+        if (data1d(2) < data1d(1) .and. data1d(1) > -0. ) data1d(2) = data1d(1) + 1.0
         ! PM10 => PMC
-        if ( data1d(2) /= FILLVALUE .and. data1d(1) /= FILLVALUE) data1d(2) = data1d(2) - data1d(1)
+        if ( data1d(2) > 0. .and. data1d(1) > 0. ) data1d(2) = data1d(2) - data1d(1)
         ! 质控
         where(data1d > 1000.) data1d = FILLVALUE
         ! CO: mg => ug

@@ -131,6 +131,7 @@ module mod_enkf
                 exit
             end if
         end do
+        ! Z*EE*Z'
         RR = matmul(matmul(Z(:, idx+1:oDim), EE(idx+1:oDim, idx+1:oDim)), transpose(Z(:, idx+1:oDim)) )
     end subroutine low_rank
 

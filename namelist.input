@@ -27,7 +27,7 @@
  delta = 81. ! 网格分辨率: km
  city = .true. ! 城市平均
  lowRank = .true. ! 误差空间降维
- inflation = .true. ! multiplicative inflation !开启之后会更加稳健
+ inflation = .fasle. ! multiplicative inflation !开启之后会更加稳健
 /
 
 &custom ! 算法参数
@@ -55,11 +55,15 @@
  opts(5)%varNames = 'SO2', 'PM25' ! NOx: emis => conc
  opts(5)%ratio = 1., 0.3
  opts(5)%nTime = 6
+ opts(5)%radius = 300.
+ opts(5)%length = 200.
 
  opts(6)%name = 'NMVOC'
  opts(6)%varNames = 'O3', 'PM25' ! NMVOC: emis => conc
- opts(6)%ratio = 1., 0.1
+ opts(6)%ratio = 1., 0.2
  opts(6)%nTime = 4
+ opts(6)%radius = 300.
+ opts(6)%length = 200.
  
  opts(7)%name = 'NH3'
  opts(7)%varNames = 'PM25' ! NH3: emis => conc
