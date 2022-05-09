@@ -1,4 +1,5 @@
 module mod_enkf
+    ! x_a = x_b + BH'(R + HBH')^-1(y_o-Hx_b)
 
     implicit none
 
@@ -23,6 +24,11 @@ module mod_enkf
 
         ! Evaluate RR = (R + HBH')
         ! RR = R + matmul(HP, transpose(HP))
+        ! write(*, *) '===================================== R: '
+        ! call print_matrix(R)
+        ! write(*, *) '===================================== HP(HP)^T:'
+        ! call print_matrix(matmul(HP, transpose(HP)))
+
         RR = R
         oDim = size(HP, 1)
         mDim = size(HP, 2)
@@ -35,10 +41,16 @@ module mod_enkf
         ! 特征值分解: R -> Z*eig*Z` 
         ! 可以对矩阵进行降维度: (R + HBH')^-1 = (R + HP(HP)')^-1 = VE^-1V'
         ! eigenvalue decomposition
-        if (lowRank) call low_rank(RR)
-
+        ! write(*, *) '===================================== raw RR'
+        ! call print_matrix(RR)
+        ! write(*, *) '===================================== raw RR_'
+        ! call print_matrix(get_penrose_inv( RR ))
+        if (lowRank) call low_rank(RR) ! HP(HP)': 正定矩阵
+        ! write(*, *) '===================================== new RR '
+        ! call print_matrix(RR)
         ! gainMatrix = P(HP)'RR
         gainMatrix = matmul(matmul(P, transpose(HP)), RR)
+        ! write(*, *) innov
         x_b = x_b + matmul(gainMatrix, innov)
     end subroutine enkf
 
@@ -82,23 +94,22 @@ module mod_enkf
         real, dimension(:), intent(out) :: eigenvalues ! oDim
 
         ! Local Var
-        real(kind=8), dimension(oDim, oDim) ::  RR
-        real(kind=8), dimension(oDim, oDim) ::  ZZ
-        real(kind=8), dimension(oDim) ::  EE
+        real, dimension(oDim, oDim) ::  RR
+        real, dimension(oDim) ::  EE
 
-        real(kind=8), dimension(oDim*8) :: FWORK
+        real, dimension(oDim*8) :: FWORK
         integer, dimension(oDim*5) :: IWORK
         integer, dimension(oDim) :: IFAIL
-        real(kind=8) abstol, ddum
+        real abstol, VL, VU
         integer neig, INFO
-        real, external :: DLAMCH
+        real, external :: SLAMCH
 
-        RR = dble(R)
-        abstol = 2.0*DLAMCH('S')
-        call dsyevx('V', 'A', 'U', oDim, RR, oDim, ddum, ddum, 1, 1, abstol, &
-                    neig, EE, ZZ, oDim, FWORK, 8*oDim, IWORK, IFAIL, INFO )
-        if (INFO /= 0) stop 'dsyevx ierr'
-        Z = ZZ
+        RR = R
+        abstol = 2.0*SLAMCH('S')
+        write(*, *) 'abstol', abstol
+        call ssyevx('V', 'A', 'U', oDim, RR, oDim, VL, VU, 1, 1, abstol, &
+                    neig, EE, Z, oDim, FWORK, 8*oDim, IWORK, IFAIL, INFO )
+        if (INFO /= 0) stop 'ssyevx ierr'
         eigenvalues = EE
     end subroutine get_eigenvalues
 
@@ -110,7 +121,7 @@ module mod_enkf
         integer :: oDim
         real, dimension(size(RR, 1)) :: eigenvalues ! oDim, oDim
         real, dimension(size(RR, 1), size(RR, 1)) :: Z ! oDim, oDim
-        real, dimension(size(RR, 1), size(RR, 1)) :: EE ! diag(eigenvalues)
+        real, dimension(size(RR, 1), size(RR, 1)) :: EE ! diag(1./eigenvalues)
         real :: sum1, sum2
         integer :: i, idx
 
@@ -119,21 +130,24 @@ module mod_enkf
 
         ! Significant eigenvalues
         EE = 0.
-        idx = 0
+        idx = 1
         sum1 = 0.
         sum2 = sum( eigenvalues )
         do i = oDim, 1, -1
-            !if (sum1/sum2 < 0.99 ) then
-            if (eigenvalues(i)/sum2 >= 0.01 ) then
+            if (sum1/sum2 < 0.99) then
+            ! if (eigenvalues(i)/sum2 > 0.01 ) then
+                ! write(*, *) 'eigenvalues: ', eigenvalues(i)
                 sum1 = sum1 + eigenvalues(i)
                 EE(i, i) = 1./eigenvalues(i)
             else
                 idx = i
+                ! write(*, *) 'eigenvalues region: ', eigenvalues(idx), eigenvalues(oDim)
+                ! write(*, *) 'Significant eigenvalues: ', oDim-idx, 'of ', oDim
                 exit
             end if
         end do
         ! Z*EE*Z'
-        RR = matmul(matmul(Z(:, idx+1:oDim), EE(idx+1:oDim, idx+1:oDim)), transpose(Z(:, idx+1:oDim)) )
+        RR = matmul(matmul(Z(:, idx:oDim), EE(idx:oDim, idx:oDim)), transpose(Z(:, idx:oDim)) )
     end subroutine low_rank
 
     subroutine print_matrix(data)

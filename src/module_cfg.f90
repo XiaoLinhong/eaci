@@ -48,6 +48,7 @@ module mod_cfg
         character(len=LENVAR) :: begTime ! 开始时间
         character(len=LENFILENAME) :: siteFileName
         character(len=LENFILENAME) :: outFileName
+        character(len=LENFILENAME) :: dftFileName
 
         ! source
         type(csvMeta) :: obsInfo
@@ -67,7 +68,7 @@ module mod_cfg
         ! enkf
         type(optMeta), dimension(MAXVAR) :: opts
 
-        NAMELIST /share/ debug, mDim, nHour, begTime, siteFileName, outFileName
+        NAMELIST /share/ debug, mDim, nHour, begTime, siteFileName, outFileName, dftFileName
         NAMELIST /source/ obsInfo, mdlInfo, adjInfo
         NAMELIST /default/ nTime, localisation, delta, radius, length, city, lowRank, inflation
 
@@ -91,6 +92,7 @@ module mod_cfg
         p%begTime = begTime
         p%siteFileName = siteFileName
         p%outFileName = outFileName
+        p%dftFileName = dftFileName
 
         ! source
         read(iHandle, nml=source)

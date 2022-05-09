@@ -18,6 +18,8 @@ program main
     use mod_routine, only : get_this_city_date
 
     use mod_tool, only : get_filename
+    use mod_tool, only : does_file_exist
+
 
     use mod_enkf, only : enkf
 
@@ -45,10 +47,10 @@ program main
     character(len=256) :: thisFile
 
     ! ENKF
-    real, dimension(1, 1) :: x_a
+    real, dimension(:, :), allocatable :: x_a ! old adj
     real, dimension(:, :), allocatable :: x_b ! CITY_NVAR, nDim
     real, dimension(:, :), allocatable :: P  ! 1, mDim
-    real, dimension(:, :),    allocatable :: innov ! oDim, 1 <= nvar, nSite, cfg%nHour, nDay
+    real, dimension(:, :), allocatable :: innov ! oDim, 1 <= nvar, nSite, cfg%nHour, nDay
     real, dimension(:, :), allocatable :: HP ! oDim, mDim <= nvar, nSite, cfg%nHour, nDay
     real, dimension(:, :), allocatable :: R  ! oDim, oDim
 
@@ -101,26 +103,36 @@ program main
     allocate( P(1, cfg%mDim) ) ! 排放扰动
     do i = 1, cityInfo%n
         if (cfg%debug) call log_notice(cityInfo%ids(i))
-        !$OMP PARALLEL DO PRIVATE(thisPatch, P, innov, HP, R, x_a)
+        ! !$OMP PARALLEL DO PRIVATE(thisPatch, P, innov, HP, R)
         do j = 1, cfg%nVar
-            ! 扫描目标位置周围的观测点位，不懂变量的检索范围可以不一样
+            ! 扫描目标位置周围的观测点位，不同变量的检索范围可以不一样
             call thisPatch%scan(cfg%opts(j)%radius, cfg%opts(j)%length, cityInfo%lons(i), cityInfo%lats(i), siteInfo)
             ! 计算排放扰动项
             P = ( adjData(cfg%opts(j)%idx, i:i, :) - adjMean(cfg%opts(j)%idx, i) )/(cfg%mDim-1.)**0.5 !
-            ! 处理目标位置的数据，局地化，膨胀
+            ! 处理目标位置的数据，局地化，膨胀，过滤缺省值
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlData, cfg%opts(j), thisPatch, innov, HP, R)
             ! EnKF
             if (size(innov) > 0) call enkf(x_b(j:j, i:i), P, innov, HP, R, cfg%opts(j)%lowRank)
-            ! if (size(innov) > 0) call enkf(x_a, P, innov, HP, R, cfg%opts(j)%lowRank)
             ! 诊断信息
             ! if (cfg%debug .and. j==1) write(*, '(20A10)') (trim(thisPatch%dcode(k)), k=1, size(thisPatch%dcode))
             if (cfg%debug) write(*, *) 'oDim: ', to_str(size(innov)), ' ncity: ', to_str(size(thisPatch%dcode))
             if (size(innov) == 0 ) call log_warning(cityInfo%ids(i)// 'has no data!')
             deallocate(innov, HP, R)
         end do
-        !$OMP END PARALLEL DO
+        ! !$OMP END PARALLEL DO
     end do
-    where(x_b<0.1) x_b = 0.05 ! 处理极小值
+    where(x_b < 0.01) x_b = 0.01 ! 处理极小值
+    where(x_b > 100.) x_b = 100. ! 处理极大值
     call write_data_csv(cfg%outFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
+
+    ! 累乘权重
+    if (does_file_exist(cfg%dftFileName)) then
+        allocate( x_a(cfg%nVar, cityInfo%n) )
+        call read_raw_adj(cfg%dftFileName, x_a)
+        x_b = x_a * x_b
+        where(x_b < 0.01) x_b = 0.01 ! 处理极小值
+        where(x_b > 100.) x_b = 100. ! 处理极大值
+    end if
+    if(trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
 
 end program main

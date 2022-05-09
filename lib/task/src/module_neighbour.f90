@@ -65,7 +65,7 @@ module mod_neighbour
                 j = j + 1
                 self%idx(j) = idx
                 ! self%ratio(j) = 1./distance%get(thisId)**0.5 ! 这个公式合适不
-                self%ratio(j) = exp( - distance%get(thisId)**0.2/(2*length**2) )
+                self%ratio(j) = exp( - distance%get(thisId)**2/(2.*length**2) )
                 self%cityIds(j) = thisId(1:6) ! 用来城市平均, 六位的城市编码
             end if
         end do

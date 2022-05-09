@@ -4,7 +4,8 @@
  nHour = 96, ! 多少小时
  begTime = '2020070100', ! 开始时间
  siteFileName = '../site.txt', ! 站点文件，读取经纬度信息
- outFileName = 'adj_naqp.csv'
+ outFileName = 'adj_20200701_naqp.csv'
+ dftFileName = 'adj_naqp.csv'
 /
 
 &source ! 数据源

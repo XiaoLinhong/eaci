@@ -141,7 +141,7 @@ module mod_csvio
         if (data1d(2) > 200 .and. data1d(1) < 100) data1d(2) = FILLVALUE
         if (data1d(2) > 400 .and. data1d(1) < 150) data1d(2) = FILLVALUE
         ! 浓度倒挂
-        if (data1d(2) < data1d(1) .and. data1d(1) > -0. ) data1d(2) = data1d(1) + 1.0
+        if (data1d(2) < data1d(1) .and. data1d(1) > 0. ) data1d(2) = data1d(1) + 1.0
         ! PM10 => PMC
         if ( data1d(2) > 0. .and. data1d(1) > 0. ) data1d(2) = data1d(2) - data1d(1)
         ! 质控
@@ -203,7 +203,7 @@ module mod_csvio
             write(99, 104) '2,', trim(info%ids(i)),',', 'name', info%lons(i), info%lats(i), '01,', '00',  data(:, i)
         end do 
         103 format( A53, 10(:,',',A10) )
-        104 format( A4, A10, A1, A7, 2(:,',',F10.2), ',', A4, A4, 10(:,',',F10.2) )
+        104 format( A4, A10, A1, A7, 2(:,',',F10.2), ',', A4, A4, 10(:,',',F10.3) )
         close(99)
     end subroutine write_data_csv
 

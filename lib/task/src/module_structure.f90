@@ -49,6 +49,7 @@ module mod_structure
         character(len=LENVAR) :: begTime ! 开始时间
         character(len=LENFILENAME) :: siteFileName
         character(len=LENFILENAME) :: outFileName
+        character(len=LENFILENAME) :: dftFileName = '-'
         
         ! file
         type(csvMeta) :: obsInfo
