@@ -121,8 +121,8 @@ program main
         end do
         ! !$OMP END PARALLEL DO
     end do
-    where(x_b < 0.01) x_b = 0.01 ! 处理极小值
-    where(x_b > 100.) x_b = 100. ! 处理极大值
+    where(x_b < 0.02) x_b = 0.02 ! 处理极小值
+    where(x_b > 50.0) x_b = 50.0 ! 处理极大值
     call write_data_csv(cfg%outFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
 
     ! 累乘权重
