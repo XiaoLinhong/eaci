@@ -41,6 +41,7 @@ program main
     real, dimension(:, :), allocatable :: adjMean ! ratio, nCity
     real, dimension(:, :, :), allocatable :: adjData ! ratio, nCity, mDim
     real, dimension(:, :, :, :), allocatable :: obsData ! nvar, nSite, cfg%nHour, nDay
+    real, dimension(:, :, :, :), allocatable :: rawData ! nvar, nSite, cfg%nHour, nDay
     real, dimension(:, :, :, :, :), allocatable :: mdlData ! nvar, nSite, cfg%nHour, nDay, mDim
 
     type(datetime) :: thisTime
@@ -61,6 +62,7 @@ program main
 
     ! 读取站点数据
     allocate(obsData(cfg%obsInfo%nVar, siteInfo%n, cfg%nHour, cfg%nday))
+    allocate(rawData(cfg%obsInfo%nVar, siteInfo%n, cfg%nHour, cfg%nday))
     allocate(mdlData(cfg%obsInfo%nVar, siteInfo%n, cfg%nHour, cfg%nday, cfg%mDim))
 
     thisTime = create_datetime(cfg%begTime, '%Y%m%d%H')
@@ -84,6 +86,20 @@ program main
         end do
     end do
 
+    ! 读取模式预报数据
+    if (cfg%rawfileName/='-') then
+        do j = 1, cfg%nday
+            thisTime = create_datetime(cfg%begTime, '%Y%m%d%H') + create_timedelta(days=j-1)
+            thisFile = thisTime%format(cfg%rawfileName)
+            thisFile = get_filename(thisFile, flag=trim(to_str(i, 2)))
+            if (cfg%debug .and. j==1) call log_notice(thisFile)
+            call read_raw_mdl(thisFile, thisTime%hour, siteInfo%locs, rawData(:, :, :, j))
+        end do
+    else
+        if (cfg%debug) call log_warning('mean of ensemble will be used to calculate invo!')
+        rawData = sum(mdlData, DIM=5)/cfg%mDim
+    end if
+
     ! 读取矫正系数
     thisFile = get_filename(cfg%adjInfo%fileName, flag=trim(to_str(1, 2)))
     cityInfo = read_info(thisFile, flag='city')
@@ -102,27 +118,32 @@ program main
     x_b = 1.
     allocate( P(1, cfg%mDim) ) ! 排放扰动
     do i = 1, cityInfo%n
+    ! do i = 295, 295 !拉萨
+    ! do i = 234, 234 !海口
+    ! do i = 1, 1 ! 北京
         if (cfg%debug) call log_notice(cityInfo%ids(i))
         ! !$OMP PARALLEL DO PRIVATE(thisPatch, P, innov, HP, R)
         do j = 1, cfg%nVar
+        ! do j = 6, 6
             ! 扫描目标位置周围的观测点位，不同变量的检索范围可以不一样
             call thisPatch%scan(cfg%opts(j)%radius, cfg%opts(j)%length, cityInfo%lons(i), cityInfo%lats(i), siteInfo)
+            ! write(*, *) thisPatch%dcode
             ! 计算排放扰动项
             P = ( adjData(cfg%opts(j)%idx, i:i, :) - adjMean(cfg%opts(j)%idx, i) )/(cfg%mDim-1.)**0.5 !
-            ! 处理目标位置的数据，局地化，膨胀，过滤缺省值
-            call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlData, cfg%opts(j), thisPatch, innov, HP, R)
+            ! 处理目标位置的数据: 局地化，膨胀，过滤缺省值
+            call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), rawData, mdlData, cfg%opts(j), thisPatch, innov, HP, R)
             ! EnKF
             if (size(innov) > 0) call enkf(x_b(j:j, i:i), P, innov, HP, R, cfg%opts(j)%lowRank)
             ! 诊断信息
             ! if (cfg%debug .and. j==1) write(*, '(20A10)') (trim(thisPatch%dcode(k)), k=1, size(thisPatch%dcode))
-            if (cfg%debug) write(*, *) 'oDim: ', to_str(size(innov)), ' ncity: ', to_str(size(thisPatch%dcode))
+            if (cfg%debug) write(*, *) cfg%opts(j)%name,'oDim: ', to_str(size(innov)), ' ncity: ', to_str(size(thisPatch%dcode))
             if (size(innov) == 0 ) call log_warning(cityInfo%ids(i)// 'has no data!')
             deallocate(innov, HP, R)
         end do
         ! !$OMP END PARALLEL DO
     end do
-    where(x_b < 0.02) x_b = 0.02 ! 处理极小值
-    where(x_b > 50.0) x_b = 50.0 ! 处理极大值
+    where(x_b < 0.05) x_b = 0.05 ! 处理极小值
+    where(x_b > 20.0) x_b = 20.0 + (x_b - 20.0)**0.5 ! 处理极大值
     call write_data_csv(cfg%outFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
 
     ! 累乘权重
@@ -133,6 +154,6 @@ program main
         where(x_b < 0.01) x_b = 0.01 ! 处理极小值
         where(x_b > 100.) x_b = 100. ! 处理极大值
     end if
-    if(trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
+    if (trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
 
 end program main

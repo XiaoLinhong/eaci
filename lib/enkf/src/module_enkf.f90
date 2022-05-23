@@ -24,8 +24,6 @@ module mod_enkf
 
         ! Evaluate RR = (R + HBH')
         ! RR = R + matmul(HP, transpose(HP))
-        ! write(*, *) '===================================== R: '
-        ! call print_matrix(R)
         ! write(*, *) '===================================== HP(HP)^T:'
         ! call print_matrix(matmul(HP, transpose(HP)))
 
@@ -52,6 +50,20 @@ module mod_enkf
         gainMatrix = matmul(matmul(P, transpose(HP)), RR)
         ! write(*, *) innov
         x_b = x_b + matmul(gainMatrix, innov)
+
+        ! write(*, *) '===================================== EP: '
+        ! call print_matrix(P)
+        ! write(*, *) '===================================== HP: '
+        ! call print_matrix(HP)
+        ! write(*, *) '===================================== innov: '
+        ! call print_matrix(innov)
+        ! write(*, *) '===================================== R: '
+        ! call print_matrix(R)
+        ! write(*, *) '===================================== RR: '
+        ! call print_matrix(RR)
+        ! write(*, *) '===================================== PE*HP: '
+        ! call print_matrix(matmul(P, transpose(HP)))
+    
     end subroutine enkf
 
     function get_penrose_inv(A) result(A_I)
@@ -106,7 +118,6 @@ module mod_enkf
 
         RR = R
         abstol = 2.0*SLAMCH('S')
-        write(*, *) 'abstol', abstol
         call ssyevx('V', 'A', 'U', oDim, RR, oDim, VL, VU, 1, 1, abstol, &
                     neig, EE, Z, oDim, FWORK, 8*oDim, IWORK, IFAIL, INFO )
         if (INFO /= 0) stop 'ssyevx ierr'

@@ -55,6 +55,7 @@ module mod_structure
         type(csvMeta) :: obsInfo
         type(csvMeta) :: mdlInfo
         type(csvMeta) :: adjInfo
+        character(len=LENFILENAME) :: rawFileName = '-'
 
         ! enkf
         integer :: nVar
