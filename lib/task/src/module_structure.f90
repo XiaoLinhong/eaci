@@ -24,6 +24,8 @@ module mod_structure
         real :: delta = 0.
         real :: radius = 0.
         real :: length = 0.
+        real :: vmin = 0.
+        real :: vmax = 0.
         integer :: nTime = 0
         integer :: localisation = 0
         logical :: city = .false.
@@ -50,7 +52,6 @@ module mod_structure
         character(len=LENFILENAME) :: siteFileName
         character(len=LENFILENAME) :: outFileName
         character(len=LENFILENAME) :: dftFileName = '-'
-        
         ! file
         type(csvMeta) :: obsInfo
         type(csvMeta) :: mdlInfo

@@ -8,6 +8,7 @@ module mod_routine
     use mod_neighbour, only : scanner
 
     use mod_tool, only : cal_distance
+    use mod_tool, only : normalize_positive_variable
 
     use flogger, only : log_notice, log_warning
 
@@ -116,19 +117,18 @@ module mod_routine
                     R_A(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差
 
                     ! 不采用膨胀的方式，感觉效果也没有很好！
-                    if (thisRaw < thisObs*0.1 ) R_A(idx, idx) = thisRaw*obsErr( opt%idxs(j) ) ! 模式的值很小
+                    ! if (thisRaw < thisObs*0.1 ) R_A(idx, idx) = thisRaw*obsErr( opt%idxs(j) ) ! 模式的值很小
                     R_A(idx, idx) = R_A(idx, idx) + (opt%delta/(length*nn))**0.2*R_A(idx, idx)/2. ! 代表性误差
                     ! sqr(delta/L)*err, L为代表性误差特征长度, err是估计出来的
-                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化
+                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化，增大观测误差，减少矫正
 
-                    ! innov = y_o - Hx_b
+                    ! innov = y_o - Hx_b: 应该要考虑一下极值的影响!
                     if (thisObs>0. .and. thisRaw>0.) innov_A(idx, 1) = (thisObs - thisRaw) !* factor
 
                     ! 集合平均
                     thisMean = 0. ! mdlData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :, :)
                     nVaildMean = COUNT(mdl4d(1:nn, :, :, :)  /= FILLVALUE)
                     if (nVaildMean > 0) thisMean = sum(mdl4d(1:nn, :, :, :) , mdl4d(1:nn, :, :, :) /= FILLVALUE)/nVaildMean
-
                     ! 集合成员
                     do ii = 1, mDim
                         thisMdl = 0. ! nvar, nSite, 24, nDays, mDim

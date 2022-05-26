@@ -2,6 +2,7 @@ module mod_tool
     ! 一些公共小程序
 
     implicit none
+    real, parameter :: FILLVALUE = -999.
 
     contains
 
@@ -267,5 +268,41 @@ module mod_tool
         a = acos( sin(phi1)*sin(phi2) + cos(phi1)*cos(phi2) * cos(deltaLamda) ) * EARTH_RADIUS_M
         d = a/1000. ! in KM
     end function cal_distance
+
+    subroutine normalize_positive_variable(array, coff)
+        ! normal distribution
+        implicit none
+        real, dimension(:), intent(inout) :: array
+        real, optional, intent(out) :: coff
+
+        ! local
+        integer :: n
+        real :: u, u_
+
+        n = count(array/=FILLVALUE)
+        if (n<2) return
+        u = sum(array, array/=FILLVALUE)/real(n)
+
+        where (array/=FILLVALUE .and. array<u ) array = u + 1 - u/array
+        if (present(coff)) then
+            u_ = sum(array, array/=FILLVALUE)/real(n)
+            ! write(*, *) 'mean: ', u_
+            coff = u_ ! 求平均值 
+            ! 感觉这个没有必要
+            ! where (array/=FILLVALUE) array = array*u/u_ ! 保持均值为1，对扰动系数有用
+        end if
+
+    end subroutine normalize_positive_variable
+
+    subroutine inverse_normalize_positive_variable(raw, coff)
+        ! inverse normal distribution, 只对均值为1的变量进行逆变换
+        implicit none
+        real, intent(inout) :: raw
+        real, optional, intent(in) :: coff
+
+        ! local
+        if (present(coff)) raw = raw*coff ! 感觉这个没有必要
+        if (raw<1) raw = 1/(2-raw) ! 均值为1 !!!!
+    end subroutine inverse_normalize_positive_variable
 
 end module mod_tool

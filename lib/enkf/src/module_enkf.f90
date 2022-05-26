@@ -38,32 +38,27 @@ module mod_enkf
         if (.not. lowRank) RR = get_penrose_inv( RR )
         ! 特征值分解: R -> Z*eig*Z` 
         ! 可以对矩阵进行降维度: (R + HBH')^-1 = (R + HP(HP)')^-1 = VE^-1V'
-        ! eigenvalue decomposition
-        ! write(*, *) '===================================== raw RR'
-        ! call print_matrix(RR)
-        ! write(*, *) '===================================== raw RR_'
-        ! call print_matrix(get_penrose_inv( RR ))
         if (lowRank) call low_rank(RR) ! HP(HP)': 正定矩阵
-        ! write(*, *) '===================================== new RR '
-        ! call print_matrix(RR)
+
         ! gainMatrix = P(HP)'RR
         gainMatrix = matmul(matmul(P, transpose(HP)), RR)
-        ! write(*, *) innov
         x_b = x_b + matmul(gainMatrix, innov)
 
-        ! write(*, *) '===================================== EP: '
-        ! call print_matrix(P)
-        ! write(*, *) '===================================== HP: '
-        ! call print_matrix(HP)
-        ! write(*, *) '===================================== innov: '
-        ! call print_matrix(innov)
-        ! write(*, *) '===================================== R: '
-        ! call print_matrix(R)
-        ! write(*, *) '===================================== RR: '
-        ! call print_matrix(RR)
-        ! write(*, *) '===================================== PE*HP: '
-        ! call print_matrix(matmul(P, transpose(HP)))
-    
+        write(*, *) '===================================== EP: '
+        call print_matrix(P)
+        write(*, *) '===================================== HP: '
+        call print_matrix(HP)
+        write(*, *) '===================================== innov: '
+        call print_matrix(innov)
+        write(*, *) '===================================== R: '
+        call print_matrix(R)
+        write(*, *) '===================================== RR: '
+        call print_matrix(RR)
+        write(*, *) '===================================== PE*HP: '
+        call print_matrix(matmul(P, transpose(HP)))
+        write(*, *) '===================================== x_b: '
+        write(*, '(10F10.2)') x_b
+
     end subroutine enkf
 
     function get_penrose_inv(A) result(A_I)
