@@ -16,7 +16,7 @@ module mod_routine
 
     contains
 
-    subroutine get_this_city_date(obsData, obsErr, rawData, mdlData, opt, patch, innov, HP, R)
+    subroutine get_this_city_date(obsData, obsErr, rawData, mdlData, opt, patch, innov, HP, R, inflation)
 
         implicit none
         ! Input Args
@@ -30,12 +30,13 @@ module mod_routine
         ! Out Args
         real, dimension(:, :), allocatable, intent(out) :: innov ! oDim <= nvar, nSite, 24, nDays
         real, dimension(:, :), allocatable, intent(out) :: HP ! oDim, mDim <= nvar, nSite, 24, nDays
-        real, dimension(:, :), allocatable, intent(out) :: R  ! oDim, oDim +
+        real, dimension(:, :), allocatable, intent(out) :: R  ! oDim, oDim
+        real, intent(out) :: inflation
 
         ! local Vars
         integer :: i, j, k, ii, idx, nn
         integer :: iBeg, iEnd
-        real,parameter :: length = 2. ! 特征长度，KM
+        real, parameter :: length = 2. ! 特征长度，KM
         real :: decay ! 距离衰减系数
         integer :: oDim, mDim, nVar, nPoint, nSlice, nSite
         integer :: nVaildObs, nVaildMdl, nVaildMean
@@ -149,7 +150,7 @@ module mod_routine
         innov = innov_A(1:idx, :)
         HP = HP_A(1:idx, :)
         R = R_A(1:idx, 1:idx)
-        if (opt%inflation ) HP = get_lambda(innov, HX(1:idx, :), R)*HP
+        inflation = get_lambda(innov, HX(1:idx, :), R)
         deallocate(obs3d, raw3d, mdl4d, tmp1d, HX)
     end subroutine get_this_city_date
 

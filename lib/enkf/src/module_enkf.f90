@@ -19,6 +19,7 @@ module mod_enkf
         ! local varbile
         ! R + HP(HP)'
         integer :: oDim, mDim
+        real, dimension(size(x_b, 1), size(innov)) :: PEHP ! 1, oDim
         real, dimension(size(innov), size(innov)) :: RR ! oDim, oDim
         real, dimension(size(x_b, 1), size(innov)) :: gainMatrix ! 1, oDim
 
@@ -41,23 +42,24 @@ module mod_enkf
         if (lowRank) call low_rank(RR) ! HP(HP)': 正定矩阵
 
         ! gainMatrix = P(HP)'RR
-        gainMatrix = matmul(matmul(P, transpose(HP)), RR)
+        PEHP = matmul(P, transpose(HP))
+        gainMatrix = matmul(PEHP, RR)
         x_b = x_b + matmul(gainMatrix, innov)
 
-        write(*, *) '===================================== EP: '
-        call print_matrix(P)
-        write(*, *) '===================================== HP: '
-        call print_matrix(HP)
-        write(*, *) '===================================== innov: '
-        call print_matrix(innov)
-        write(*, *) '===================================== R: '
-        call print_matrix(R)
-        write(*, *) '===================================== RR: '
-        call print_matrix(RR)
-        write(*, *) '===================================== PE*HP: '
-        call print_matrix(matmul(P, transpose(HP)))
-        write(*, *) '===================================== x_b: '
-        write(*, '(10F10.2)') x_b
+        ! write(*, *) '===================================== EP: '
+        ! call print_matrix(P)
+        ! write(*, *) '===================================== HP: '
+        ! call print_matrix(HP)
+        ! write(*, *) '===================================== innov: '
+        ! call print_matrix(innov)
+        ! write(*, *) '===================================== R: '
+        ! call print_matrix(R)
+        ! write(*, *) '===================================== RR: '
+        ! call print_matrix(RR)
+        ! write(*, *) '===================================== PE*HP: '
+        ! call print_matrix(PEHP)
+        ! write(*, *) '===================================== x_b: '
+        ! write(*, '(10F10.2)') x_b
 
     end subroutine enkf
 

@@ -21,6 +21,7 @@ program main
 
     use mod_tool, only : get_filename
     use mod_tool, only : does_file_exist
+    use mod_tool, only : get_idx_in_str_list
     use mod_tool, only : normalize_positive_variable
     use mod_tool, only : inverse_normalize_positive_variable
 
@@ -41,6 +42,7 @@ program main
 
     type(scanner) :: thisPatch
 
+    integer :: idx ! 当前城市在观测中的位置
     integer :: i, j, k, ii, jj
     real, dimension(:, :), allocatable :: adjMean ! nvar, nCity
     real, dimension(:, :), allocatable :: coff ! nvar, nCity ! 转换系数
@@ -60,6 +62,7 @@ program main
     real, dimension(:, :), allocatable :: innov ! oDim, 1 <= nvar, nSite, cfg%nHour, nDay
     real, dimension(:, :), allocatable :: HP ! oDim, mDim <= nvar, nSite, cfg%nHour, nDay
     real, dimension(:, :), allocatable :: R  ! oDim, oDim
+    real :: inflation
 
     cfg = get_cfg()
 
@@ -140,38 +143,52 @@ program main
     allocate( x_b(cfg%nVar, cityInfo%n) )
     x_b = 1.
     allocate( P(1, cfg%mDim) ) ! 排放扰动
-    ! do i = 1, cityInfo%n
-    do i = 295, 295 !拉萨
+    do i = 1, cityInfo%n
+    ! do i = 295, 295 !拉萨
     ! do i = 234, 234 !海口
     ! do i = 1, 1 ! 北京
     ! do i = 123, 123 ! 南昌
     ! do i = 2, 3 ! 天津、唐山
+    ! do i = 133, 133 ! 济南
+    ! do i = 327, 327 ! 海北藏族自治州
+    ! do i = 341, 341 ! 乌鲁木齐市
         if (cfg%debug) call log_notice(cityInfo%ids(i))
         ! !$OMP PARALLEL DO PRIVATE(thisPatch, P, innov, HP, R)
-        ! do j = 1, cfg%nVar
-        do j = 1, 1
+        do j = 1, cfg%nVar
+        ! do j = 4, 4 ! 没有本地观测数据！
             ! 扫描目标位置周围的观测点位，不同变量的检索范围可以不一样
             call thisPatch%scan(cfg%opts(j)%radius, cfg%opts(j)%length, cityInfo%lons(i), cityInfo%lats(i), siteInfo)
-            ! write(*, *) thisPatch%dcode
             ! 计算排放扰动项
             P = ( adjData(cfg%opts(j)%idx, i:i, :) - adjMean(cfg%opts(j)%idx, i) )/(cfg%mDim-1.)**0.5 !
             ! 处理目标位置的数据: 局地化，膨胀，过滤缺省值
-            call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), rawData, mdlData, cfg%opts(j), thisPatch, innov, HP, R)
+            call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), rawData, mdlData,&
+                                    cfg%opts(j), thisPatch, innov, HP, R, inflation)
             if (size(innov) == 0 ) then
                 call log_warning(cityInfo%ids(i)// 'has no data!')
                 cycle
             end if
             ! EnKF
             if (norm) x_b(j, i) = coff(j, i)
+            if (cfg%opts(j)%inflation) HP = HP*inflation
+            if (cfg%opts(j)%inflation) P = P*inflation
             call enkf(x_b(j:j, i:i), P, innov, HP, R, cfg%opts(j)%lowRank)
             ! x_b(j, i) = inverse_normalize_positive_variable(x_b(j, i), coff(j, i)) ! 逆正态化
             if (norm) call inverse_normalize_positive_variable(x_b(j, i)) ! 逆正态化
             ! 诊断信息
             ! if (cfg%debug .and. j==1) write(*, '(20A10)') (trim(thisPatch%dcode(k)), k=1, size(thisPatch%dcode))
-            if (cfg%debug) write(*, *) cfg%opts(j)%name,'oDim: ', to_str(size(innov)), ' ncity: ', to_str(size(thisPatch%dcode))
-            deallocate(innov, HP, R)
+            ! if (cfg%debug) write(*, *) cfg%opts(j)%name,'oDim: ', to_str(size(innov)), ' ncity: ', to_str(size(thisPatch%dcode))
+            ! 限制: 增加鲁棒性
             if(x_b(j, i) < cfg%opts(j)%vmin) x_b(j, i) = cfg%opts(j)%vmin ! 处理极小值
-            if(x_b(j, i) > cfg%opts(j)%vmax) x_b(j, i) = cfg%opts(j)%vmax + (x_b(j, i) - cfg%opts(j)%vmax)**0.5 ! 处理极大值
+            if(x_b(j, i) > cfg%opts(j)%vmax) x_b(j, i) = cfg%opts(j)%vmax ! 处理极大值
+            idx = get_idx_in_str_list(cityInfo%ids(i), thisPatch%dcode)
+            if (idx > 0) then
+                if (j == 6 .and. j == 1 .and. j == 2 ) then ! 对于臭氧
+                    if ( innov(1, idx)*( x_b(j, i) - 1.0) < 0. ) x_b(j, i) = 1.0 ! 矫正方向反了
+                end if
+            else
+                x_b(j, i) = x_b(j, i)**0.5 ! 没有观测的城市, 少矫正一些，增加鲁棒性
+            end if 
+            deallocate(innov, HP, R)
         end do
         ! !$OMP END PARALLEL DO
     end do
@@ -183,8 +200,8 @@ program main
         allocate( x_a(cfg%nVar, cityInfo%n) )
         call read_raw_adj(cfg%dftFileName, x_a)
         x_b = x_a * x_b
-        if(x_b(j, i) < cfg%opts(j)%vmin/2.) x_b(j, i) = cfg%opts(j)%vmin/2. ! 处理极小值
-        if(x_b(j, i) > cfg%opts(j)%vmax*2.) x_b(j, i) = cfg%opts(j)%vmax*2. + (x_b(j, i) - cfg%opts(j)%vmax*2.)**0.5 ! 处理极大值
+        where (x_b < 0.02) x_b = 0.02 - (0.02 - x_b)*0.5 ! 处理极小值
+        where (x_b > 50.0) x_b = 50.0 + (x_b - 50.0)**0.5 ! 处理极大值
     end if
     if (trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name)
 

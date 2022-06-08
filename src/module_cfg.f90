@@ -151,7 +151,7 @@ module mod_cfg
                     write(*, '(15A10)') trim(p%opts(i)%name), to_str(p%opts(i)%idx), &
                     trim(p%opts(i)%varNames(j)), to_str(p%opts(i)%idxs(j)), to_str(p%opts(i)%ratio(j), 2, 3) &
                     , to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%length, 2, 9), to_str(p%opts(i)%nTime), &
-                    to_str(p%opts(i)%vmin, 2, 9), to_str(p%opts(i)%vmax, 2, 9)
+                    to_str(p%opts(i)%vmin, 2, 7), to_str(p%opts(i)%vmax, 2, 9)
                 end do
             end do
             call log_notice('===================================================================')
