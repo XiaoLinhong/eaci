@@ -231,10 +231,6 @@ module mod_tool
         integer :: i
 
         idx = 0
-        if (trim(name) == 'xxx') then
-            idx = size(names) + 1
-            return
-        end if
         do i = 1, size(names)
             if (trim(name) == trim(names(i))) then
                 idx = i
@@ -245,6 +241,7 @@ module mod_tool
 
     real function cal_distance(lon1, lat1, lon2, lat2) result(d)
         ! haversine’ formula to calculate the great-circle distance between two points
+        ! 单位为km
         implicit none
         real, intent(in) :: lon1
         real, intent(in) :: lat1
@@ -264,45 +261,8 @@ module mod_tool
         phi2 = lat2 * RAD_PER_DEG
 
         deltaLamda = (lon2-lon1) * RAD_PER_DEG
-
         a = acos( sin(phi1)*sin(phi2) + cos(phi1)*cos(phi2) * cos(deltaLamda) ) * EARTH_RADIUS_M
         d = a/1000. ! in KM
     end function cal_distance
-
-    subroutine normalize_positive_variable(array, coff)
-        ! normal distribution
-        implicit none
-        real, dimension(:), intent(inout) :: array
-        real, optional, intent(out) :: coff
-
-        ! local
-        integer :: n
-        real :: u, u_
-
-        n = count(array/=FILLVALUE)
-        if (n<2) return
-        u = sum(array, array/=FILLVALUE)/real(n)
-
-        where (array/=FILLVALUE .and. array<u ) array = u + 1 - u/array
-        if (present(coff)) then
-            u_ = sum(array, array/=FILLVALUE)/real(n)
-            ! write(*, *) 'mean: ', u_
-            coff = u_ ! 求平均值 
-            ! 感觉这个没有必要
-            ! where (array/=FILLVALUE) array = array*u/u_ ! 保持均值为1，对扰动系数有用
-        end if
-
-    end subroutine normalize_positive_variable
-
-    subroutine inverse_normalize_positive_variable(raw, coff)
-        ! inverse normal distribution, 只对均值为1的变量进行逆变换
-        implicit none
-        real, intent(inout) :: raw
-        real, optional, intent(in) :: coff
-
-        ! local
-        if (present(coff)) raw = raw*coff ! 感觉这个没有必要
-        if (raw<1) raw = 1/(2-raw) ! 均值为1 !!!!
-    end subroutine inverse_normalize_positive_variable
 
 end module mod_tool

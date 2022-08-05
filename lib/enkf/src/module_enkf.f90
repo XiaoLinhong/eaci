@@ -23,11 +23,6 @@ module mod_enkf
         real, dimension(size(innov), size(innov)) :: RR ! oDim, oDim
         real, dimension(size(x_b, 1), size(innov)) :: gainMatrix ! 1, oDim
 
-        ! Evaluate RR = (R + HBH')
-        ! RR = R + matmul(HP, transpose(HP))
-        ! write(*, *) '===================================== HP(HP)^T:'
-        ! call print_matrix(matmul(HP, transpose(HP)))
-
         RR = R
         oDim = size(HP, 1)
         mDim = size(HP, 2)
@@ -73,21 +68,18 @@ module mod_enkf
         ! declare the local varibles
         integer :: n
         integer :: INFO ! = 0:  successful exit
-        integer, dimension(size(A,1))       :: IPIV ! The pivot indices from DGETRF; for 1<=i<=N
-        real(kind=8), dimension(size(A,1))  :: WORK
-        real(kind=8), dimension(size(A,1), size(A,2)) :: A_I_d
+        integer, dimension(size(A,1)) :: IPIV ! The pivot indices from DGETRF; for 1<=i<=N
+        real, dimension(size(A,1))  :: WORK
 
         A_I = 0.
-        A_I_d = dble(A)
         n = size(A, 1)
-        call dgetrf( n, n, A_I_d, n, IPIV, INFO ) ! LU分解(Sivan Toledo递归算法)
+        call sgetrf( n, n, A, n, IPIV, INFO ) ! LU分解(Sivan Toledo递归算法)
         ! if (INFO /= 0) stop 'Matrix is numerically singular!'
         if (INFO /= 0) write(*, *) 'Matrix is numerically singular!'
         if (INFO /= 0) return 
         ! computes the inverse of a matrix using the LU factorization computed by DGETRF.
-        call dgetri( n, A_I_d, n, IPIV, WORK, n, INFO )
-        if(INFO /= 0) return
-        A_I = A_I_d
+        call sgetri( n, A_I, n, IPIV, WORK, n, INFO )
+        if (INFO /= 0) return
 
     end function get_penrose_inv
 

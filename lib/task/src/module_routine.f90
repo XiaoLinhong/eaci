@@ -8,7 +8,6 @@ module mod_routine
     use mod_neighbour, only : scanner
 
     use mod_tool, only : cal_distance
-    use mod_tool, only : normalize_positive_variable
 
     use flogger, only : log_notice, log_warning
 
@@ -16,13 +15,13 @@ module mod_routine
 
     contains
 
-    subroutine get_this_city_date(obsData, obsErr, rawData, mdlData, opt, patch, innov, HP, R, inflation)
+    subroutine get_this_city_date(obsData, obsErr, mdlMean, mdlData, opt, patch, innov, HP, R, inflation)
 
         implicit none
         ! Input Args
         real, dimension(:, :, :, :), intent(in) :: obsData ! nvar, nSite, 24, nDays
         real, dimension(:), intent(in) :: obsErr ! nvar
-        real, dimension(:, :, :, :), intent(in) :: rawData ! nvar, nSite, 24, nDays
+        real, dimension(:, :, :, :), intent(in) :: mdlMean ! nvar, nSite, 24, nDays
         real, dimension(:, :, :, :, :), intent(in) :: mdlData ! nvar, nSite, 24, nDays, mDim
         type(optMeta), intent(in) :: opt
         type(scanner), intent(in) :: patch
@@ -36,12 +35,12 @@ module mod_routine
         ! local Vars
         integer :: i, j, k, ii, idx, nn
         integer :: iBeg, iEnd
-        real, parameter :: length = 2. ! 特征长度，KM
+        real, parameter :: LENGHT = 2. ! 特征长度，KM
         real :: decay ! 距离衰减系数
         integer :: oDim, mDim, nVar, nPoint, nSlice, nSite
         integer :: nVaildObs, nVaildMdl, nVaildMean
         real :: thisObs, thisMdl, thisMean, thisRaw, factor
-        real, dimension(:), allocatable :: tmp1d
+        real, dimension(:), allocatable :: wgts
         real, dimension(:, :), allocatable :: HX
         real, dimension(:, :, :), allocatable :: obs3d
         real, dimension(:, :, :), allocatable :: raw3d
@@ -49,16 +48,16 @@ module mod_routine
 
         real, dimension(:, :), allocatable :: innov_A ! oDim <= nvar, nSite, 24, nDays
         real, dimension(:, :), allocatable :: HP_A ! oDim, mDim <= nvar, nSite, 24, nDays
-        real, dimension(:, :), allocatable :: R_A  ! oDim, oDim +
+        real, dimension(:, :), allocatable :: R_A  ! oDim, oDim
     
-        nSlice = size(obsData, 3)/opt%nTime ! 一天中时间分段
+        nSlice = size(obsData, 3)/opt%nTime ! 一天中，时间分段
         nSite = size(patch%idx)
         mDim = size( mdlData, 5 )
         nPoint = nSite
         if (opt%city) nPoint = size(patch%dcode)
         oDim = nPoint*opt%nVar*nSlice
 
-        allocate( tmp1d(nSite) )
+        allocate( wgts(nSite) )
         allocate( obs3d(nSite, opt%nTime, size(obsData, 4)) )
         allocate( raw3d(nSite, opt%nTime, size(obsData, 4)) )
         allocate( mdl4d(nSite, opt%nTime, size(obsData, 4), mDim) )
@@ -67,9 +66,6 @@ module mod_routine
         allocate( innov_A(oDim, 1) )
         allocate( HP_A(oDim, mDim) )
         allocate( R_A(oDim, oDim) )
-        innov_A = 0.
-        HP_A = 0.
-        R_A = 0.
         idx = 0
         ! 各时段*各变量*各站点(或者各城市)
         do k = 1, nPoint
@@ -84,62 +80,62 @@ module mod_routine
                         do ii = 1, nSite
                             if ( patch%cityIds(ii) == patch%dcode(k) ) then ! 通过城市编号匹配
                                 nn = nn + 1
-                                tmp1d(nn) = patch%ratio(ii)
+                                wgts(nn) = patch%ratio(ii)
                                 obs3d(nn, :, :) = obsData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :)
-                                raw3d(nn, :, :) = rawData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :)
+                                raw3d(nn, :, :) = mdlMean(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :)
                                 mdl4d(nn, :, :, :) = mdlData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :, :)
                             end if
                         end do
                         ! 城市中最近一个观测点的距离化系数作为代表系数
-                        if (opt%localisation == 2) decay = maxval(tmp1d(1:nn)) 
+                        if (opt%localisation == 2) decay = maxval(wgts(1:nn)) 
                     else ! 不需要求城市平均
                         if (opt%localisation == 2) decay = patch%ratio(k)
                         nn = 1
                         obs3d(nn, :, :) = obsData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :)
-                        raw3d(nn, :, :) = rawData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :)
+                        raw3d(nn, :, :) = mdlMean( opt%idxs(j), patch%idx(k), iBeg:iEnd, :)
                         mdl4d(nn, :, :, :) = mdlData( opt%idxs(j), patch%idx(k), iBeg:iEnd, :, :)
                     end if
                     factor = opt%ratio(j)*decay ! 变量局地化参数*空间距地化参数
 
-                    ! 观测平均值
-                    thisObs = 0.
+                    ! 观测平均值: 时段整体平均，不太好，没有考虑鲁棒性
                     nVaildObs = COUNT(obs3d(1:nn, :, :) /= FILLVALUE)
                     if (nVaildObs > 0) thisObs = sum(obs3d(1:nn, :, :) , obs3d(1:nn, :, :)  /= FILLVALUE)/nVaildObs
                     ! 观测质量不行
                     if (nVaildObs < size(obs3d(1:nn, :, :))/3. .or. thisObs <= 0. ) cycle
 
-                    ! 模式预报
-                    thisRaw = 0.
+                    ! 模式预报: 缺省值应该很少
                     nVaildMean = COUNT(raw3d(1:nn, :, :) /= FILLVALUE)
                     if (nVaildMean > 0) thisRaw = sum(raw3d(1:nn, :, :) , raw3d(1:nn, :, :)  /= FILLVALUE)/nVaildMean
+                    ! 模式质量不行
+                    if (nVaildObs < size(raw3d(1:nn, :, :))/3. .or. thisRaw <= 0. ) cycle
+
+                    ! 集合平均：不应该有很多缺测
+                    nVaildMean = COUNT(mdl4d(1:nn, :, :, :) /= FILLVALUE)
+                    if ( nVaildMean < size(mdl4d(1:nn, :, :, :))/2. ) cycle
+                    thisMean = sum(mdl4d(1:nn, :, :, :) , mdl4d(1:nn, :, :, :) /= FILLVALUE)/nVaildMean
 
                     ! 观测误差矩阵
                     idx = idx + 1
                     R_A(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差
-
-                    ! 不采用膨胀的方式，感觉效果也没有很好！
-                    ! if (thisRaw < thisObs*0.1 ) R_A(idx, idx) = thisRaw*obsErr( opt%idxs(j) ) ! 模式的值很小
-                    R_A(idx, idx) = R_A(idx, idx) + (opt%delta/(length*nn))**0.2*R_A(idx, idx)/2. ! 代表性误差
+                    R_A(idx, idx) = R_A(idx, idx) + (opt%delta/(LENGHT*nn))**0.2*R_A(idx, idx)/2. ! 代表性误差
                     ! sqr(delta/L)*err, L为代表性误差特征长度, err是估计出来的
-                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化，增大观测误差，减少矫正
+                    ! 模式的数值很小时
+                    if ( thisRaw/10. < thisObs ) R_A(idx, idx) =  R_A(idx, idx)/10.
+                    ! 局地化
+                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化， 增大观测误差， 减少矫正
 
+                    !=========== 可以用鲁棒性更强的方式，来求innov ！
                     ! innov = y_o - Hx_b: 应该要考虑一下极值的影响!
-                    if (thisObs>0. .and. thisRaw>0.) innov_A(idx, 1) = (thisObs - thisRaw) !* factor
+                    innov_A(idx, 1) = (thisObs - thisRaw) !* factor
 
-                    ! 集合平均
-                    thisMean = 0. ! mdlData(opt%idxs(j), patch%idx(ii), iBeg:iEnd, :, :)
-                    nVaildMean = COUNT(mdl4d(1:nn, :, :, :)  /= FILLVALUE)
-                    if (nVaildMean > 0) thisMean = sum(mdl4d(1:nn, :, :, :) , mdl4d(1:nn, :, :, :) /= FILLVALUE)/nVaildMean
                     ! 集合成员
                     do ii = 1, mDim
-                        thisMdl = 0. ! nvar, nSite, 24, nDays, mDim
+                        HX(idx, ii) = thisMean
                         nVaildMdl = COUNT(mdl4d(1:nn, :, :, ii) /= FILLVALUE)
-                        if (nVaildMdl > 0) thisMdl = sum(mdl4d(1:nn, :, :, ii), mdl4d(1:nn, :, :, ii) /= FILLVALUE)/nVaildMdl
-                        HX(idx, ii) = thisMdl
+                        if (nVaildMdl > 0) HX(idx, ii) = sum(mdl4d(1:nn, :, :, ii), mdl4d(1:nn, :, :, ii) /= FILLVALUE)/nVaildMdl
                         ! (X-mean(X))/sqt((m-1))
-                        if (thisMdl>0.) HP_A(idx, ii) = (thisMdl - thisMean)/((mDim-1.)**0.5)
+                         HP_A(idx, ii) = (HX(idx, ii) - thisMean)/((mDim-1.)**0.5)
                     end do
-                    if ( sum(HP_A(idx, :))/mDim > 1. ) call log_warning('HP is wrong')
                 end do
             end do
         end do
@@ -151,13 +147,12 @@ module mod_routine
         HP = HP_A(1:idx, :)
         R = R_A(1:idx, 1:idx)
         inflation = get_lambda(innov, HX(1:idx, :), R)
-        deallocate(obs3d, raw3d, mdl4d, tmp1d, HX)
+        deallocate(obs3d, raw3d, mdl4d, wgts, HX)
     end subroutine get_this_city_date
 
     real function get_lambda(innov, HX, R) result(lambda)
-
+        ! 计算膨胀系数
         implicit none
-
         ! Input Args
         real, dimension(:, :), intent(in) :: innov ! oDim, 1
         real, dimension(:, :), intent(in) :: HX ! oDim, mDim
@@ -190,18 +185,11 @@ module mod_routine
         do i = 1, size(HX, 2)
             denominator = denominator + PP(i,i)
         end do
-
         if (denominator <= 0.) return
         ! lambda
         lambda = (numerator(1, 1)/denominator)**0.5
-
-        ! write(*, *) 'numerator:', numerator
-        ! write(*, *) 'denominator:', denominator
-        ! write(*, *) 'lambda: ', lambda
         if (lambda<1.) lambda = 1.
-        if (lambda>50.) lambda = 50.
-
-        ! write(*, *) 'lambda: ', lambda
+        if (lambda>10.) lambda = 10.
     end function get_lambda
 
 end module mod_routine

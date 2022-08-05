@@ -47,8 +47,10 @@ module mod_cfg
         integer :: nHour
         character(len=LENVAR) :: begTime ! 开始时间
         character(len=LENFILENAME) :: siteFileName
+        character(len=LENFILENAME) :: cityFileName
         character(len=LENFILENAME) :: outFileName
         character(len=LENFILENAME) :: dftFileName = '-'
+        character(len=LENVAR), dimension(MAXVAR) :: sectorNames = '-' ! 行业名称
 
         ! source
         type(csvMeta) :: obsInfo
@@ -70,7 +72,7 @@ module mod_cfg
         ! enkf
         type(optMeta), dimension(MAXVAR) :: opts
 
-        NAMELIST /share/ debug, mDim, nHour, begTime, siteFileName, outFileName, dftFileName
+        NAMELIST /share/ debug, mDim, nHour, begTime, cityFileName, siteFileName, outFileName, dftFileName, sectorNames
         NAMELIST /source/ obsInfo, mdlInfo, adjInfo, rawFileName
         NAMELIST /default/ nTime, localisation, delta, radius, length, city, lowRank, inflation, vmin, vmax
 
@@ -93,8 +95,11 @@ module mod_cfg
         end if
         p%begTime = begTime
         p%siteFileName = siteFileName
+        p%cityFileName = cityFileName
         p%outFileName = outFileName
         p%dftFileName = dftFileName
+        p%nSetor = count(sectorNames /= "-")
+        p%sectorNames = sectorNames(1:p%nSetor)
 
         ! source
         read(iHandle, nml=source)
@@ -114,6 +119,7 @@ module mod_cfg
         p%nVar = count(opts%name /= "-")
         do i = 1, p%adjInfo%nVar
             if (opts(i)%nTime == 0) opts(i)%nTime = nTime
+            if (p%nHour /= 24) opts(i)%nTime = p%nHour ! 不满一天
             if (opts(i)%delta == 0.)  opts(i)%delta = delta
             if (opts(i)%radius == 0.)  opts(i)%radius = radius
             if (opts(i)%length == 0.)  opts(i)%length = length
@@ -125,7 +131,7 @@ module mod_cfg
             if (opts(i)%localisation == 0) opts(i)%localisation = localisation
         end do
 
-        ! 数据之间的变量映射关系
+        ! 变量之间的映射关系
         idx = 0
         do i = 1, p%adjInfo%nVar
             ! 输出调优系数变量和排放变量的对应关系
@@ -149,8 +155,8 @@ module mod_cfg
             do i = 1, p%nVar
                 do j = 1, p%opts(i)%nVar
                     write(*, '(15A10)') trim(p%opts(i)%name), to_str(p%opts(i)%idx), &
-                    trim(p%opts(i)%varNames(j)), to_str(p%opts(i)%idxs(j)), to_str(p%opts(i)%ratio(j), 2, 3) &
-                    , to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%length, 2, 9), to_str(p%opts(i)%nTime), &
+                    trim(p%opts(i)%varNames(j)), to_str(p%opts(i)%idxs(j)), to_str(p%opts(i)%ratio(j), 2, 3),  &
+                    to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%length, 2, 9), to_str(p%opts(i)%nTime), &
                     to_str(p%opts(i)%vmin, 2, 7), to_str(p%opts(i)%vmax, 2, 9)
                 end do
             end do
