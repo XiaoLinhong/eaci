@@ -78,9 +78,10 @@ module mod_csvio
         end if
         open(50, file=vFile, form='formatted', iostat=ierror, status='old')
         read(50, *, iostat=ierror)
-        do i = 1, size(data3d, 2)
+        do while (.true.) ! 一直读到最后一行
             ! FLAG, ID,   sector, name,    lon,      lat, MM, HH,  PM25,   PMC,    CO,   NOx,   SO2, NMVOC,   NH3
             read(50, *, iostat=ierror) buff(1), thisId,  sectorName, buff(3:7), data1d
+            if(ierror /= 0) exit
             iCity = locs%get(thisId)
             iSector = get_idx_in_str_list(sectorName, sectorNames)
             if ( iCity>0 .and. iSector>0) data3d(:, iCity, iSector) = data1d
@@ -205,14 +206,14 @@ module mod_csvio
         integer           :: ierror    ! Flag for open file error 
   
         open(99, file=trim(vFile), form='formatted', iostat=ierror)
-        write(99, 103) 'FLAG,       ID,   sector, name,       lon,       lat, MM,  HH', (ADJUSTR(trim(varNames(i))), i=1, size(varNames))
+        write(99, 103) 'FLAG,       ID,   sector,   name,       lon,       lat, MM,  HH', (ADJUSTR(trim(varNames(i))), i=1, size(varNames))
         do j = 1, size(sectorNames)
             do i = 1, info%n
                 write(99, 104) '2,', trim(info%ids(i)),',', trim(sectorNames(j)),',', 'name', info%lons(i), info%lats(i), '01,', '00',  data(:, i, j)
             end do
         end do
-        103 format( A53, 10(:,',',A10) )
-        104 format( A4, A10, A1, A10, A7, 2(:,',',F10.2), ',', A4, A4, 10(:,',',F10.3) )
+        103 format( A63, 10(:,',',A10) )
+        104 format( A4, A10, A1, A9, A1, A7, 2(:,',',F10.2), ',', A4, A4, 10(:,',',F10.3) )
         close(99)
     end subroutine write_data_csv
 
