@@ -20,7 +20,7 @@ module mod_enkf
         ! R + HP(HP)'
         integer :: oDim, mDim
         real, dimension(size(x_b, 1), size(innov)) :: PEHP ! 1, oDim
-        real, dimension(size(innov), size(innov)) :: RR ! oDim, oDim
+        real, dimension(size(innov),  size(innov)) :: RR ! oDim, oDim
         real, dimension(size(x_b, 1), size(innov)) :: gainMatrix ! 1, oDim
 
         RR = R
@@ -34,12 +34,16 @@ module mod_enkf
         if (.not. lowRank) RR = get_penrose_inv( RR )
         ! 特征值分解: R -> Z*eig*Z` 
         ! 可以对矩阵进行降维度: (R + HBH')^-1 = (R + HP(HP)')^-1 = VE^-1V'
+        ! write(*, *) '===================================== RR: '
+        ! call print_matrix(RR)
         if (lowRank) call low_rank(RR) ! HP(HP)': 正定矩阵
 
         ! gainMatrix = P(HP)'RR
         PEHP = matmul(P, transpose(HP))
         gainMatrix = matmul(PEHP, RR)
         x_b = x_b + matmul(gainMatrix, innov)
+        where( x_b > 10.) x_b = 10.
+        where( x_b < 0.1) x_b = 0.1
 
         ! write(*, *) '===================================== EP: '
         ! call print_matrix(P)
@@ -109,7 +113,10 @@ module mod_enkf
         abstol = 2.0*SLAMCH('S')
         call ssyevx('V', 'A', 'U', oDim, RR, oDim, VL, VU, 1, 1, abstol, &
                     neig, EE, Z, oDim, FWORK, 8*oDim, IWORK, IFAIL, INFO )
-        if (INFO /= 0) stop 'ssyevx ierr'
+        if (INFO /= 0) then
+            call print_matrix(R)
+            stop 'ssyevx ierr'
+        end if
         eigenvalues = EE
     end subroutine get_eigenvalues
 

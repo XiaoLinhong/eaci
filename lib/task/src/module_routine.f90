@@ -1,6 +1,5 @@
 module mod_routine
 
-    use mod_hash, only : hash
     use mod_constant, only : FILLVALUE
     use mod_structure, only : pointInfo
     use mod_structure, only : optMeta
@@ -54,22 +53,25 @@ module mod_routine
         nSite = size(patch%idx)
         mDim = size( mdlData, 5 )
         nPoint = nSite
-        if (opt%city) nPoint = size(patch%dcode)
-        oDim = nPoint*opt%nVar*nSlice
+        if (opt%city) nPoint = size(patch%dcode) ! 学要求城市平均
+        oDim = nPoint*opt%nVar*nSlice ! 一个天中多个城市多个变量的偏差，同时订正一个城市
 
+        ! write(*, *) nSite, opt%nTime, size(obsData, 4), mDim
         allocate( wgts(nSite) )
         allocate( obs3d(nSite, opt%nTime, size(obsData, 4)) )
         allocate( raw3d(nSite, opt%nTime, size(obsData, 4)) )
         allocate( mdl4d(nSite, opt%nTime, size(obsData, 4), mDim) )
         allocate( HX(oDim, mDim) )
+
         ! 包含缺失值
         allocate( innov_A(oDim, 1) )
         allocate( HP_A(oDim, mDim) )
         allocate( R_A(oDim, oDim) )
-        idx = 0
+        idx = 0 ! 有效数据
+
         ! 各时段*各变量*各站点(或者各城市)
         do k = 1, nPoint
-            decay = 1.
+            decay = 1. ! 初始化衰减系数
             do j = 1, opt%nVar
                 do i = 1, nSlice ! 时间片段
                     iBeg = (i-1)*opt%nTime+1
@@ -88,6 +90,7 @@ module mod_routine
                         end do
                         ! 城市中最近一个观测点的距离化系数作为代表系数
                         if (opt%localisation == 2) decay = maxval(wgts(1:nn)) 
+                        ! write(*, *) nn, patch%dcode(k), decay
                     else ! 不需要求城市平均
                         if (opt%localisation == 2) decay = patch%ratio(k)
                         nn = 1
@@ -97,7 +100,7 @@ module mod_routine
                     end if
                     factor = opt%ratio(j)*decay ! 变量局地化参数*空间距地化参数
 
-                    ! 观测平均值: 时段整体平均，不太好，没有考虑鲁棒性
+                    ! 观测平均值: 时段整体平均
                     nVaildObs = COUNT(obs3d(1:nn, :, :) /= FILLVALUE)
                     if (nVaildObs > 0) thisObs = sum(obs3d(1:nn, :, :) , obs3d(1:nn, :, :)  /= FILLVALUE)/nVaildObs
                     ! 观测质量不行
@@ -114,15 +117,16 @@ module mod_routine
                     if ( nVaildMean < size(mdl4d(1:nn, :, :, :))/2. ) cycle
                     thisMean = sum(mdl4d(1:nn, :, :, :) , mdl4d(1:nn, :, :, :) /= FILLVALUE)/nVaildMean
 
+                    ! 模式的数值很小时, 偏差太大了, 就不做为调整系数了
+                    ! if ( thisRaw < thisObs/5.0 ) cycle ! 最好在一个正常的范围
+
                     ! 观测误差矩阵
                     idx = idx + 1
                     R_A(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差
                     R_A(idx, idx) = R_A(idx, idx) + (opt%delta/(LENGHT*nn))**0.2*R_A(idx, idx)/2. ! 代表性误差
                     ! sqr(delta/L)*err, L为代表性误差特征长度, err是估计出来的
-                    ! 模式的数值很小时
-                    if ( thisRaw/10. < thisObs ) R_A(idx, idx) =  R_A(idx, idx)/10.
                     ! 局地化
-                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化， 增大观测误差， 减少矫正
+                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化, 增大观测误差， 减少矫正
 
                     !=========== 可以用鲁棒性更强的方式，来求innov ！
                     ! innov = y_o - Hx_b: 应该要考虑一下极值的影响!
@@ -147,6 +151,7 @@ module mod_routine
         HP = HP_A(1:idx, :)
         R = R_A(1:idx, 1:idx)
         inflation = get_lambda(innov, HX(1:idx, :), R)
+        deallocate(innov_A, HP_A, R_A)
         deallocate(obs3d, raw3d, mdl4d, wgts, HX)
     end subroutine get_this_city_date
 
@@ -191,5 +196,74 @@ module mod_routine
         if (lambda<1.) lambda = 1.
         if (lambda>10.) lambda = 10.
     end function get_lambda
+
+    subroutine get_this_city_loc(cityID, siteInfo, siteLoc)
+        ! ! 当前城市有多少个站点
+        implicit none
+        character(len=15), intent(in) :: cityID
+        type(pointInfo),intent(in) :: siteInfo
+
+        integer, dimension(:), allocatable, intent(inout) :: siteLoc
+
+        integer :: i
+        integer :: nsite
+        integer, dimension(500) :: tmpCity
+
+        nsite = 0
+        do i = 1, siteInfo%n
+            if ( trim(siteInfo%cityIds(i)) == trim(cityID) ) then
+                    nsite = nsite + 1
+                    tmpCity(nsite) = i
+            end if
+        end do
+        allocate(siteLoc(nsite))
+        siteLoc = tmpCity(1:nsite)
+
+    end subroutine get_this_city_loc
+
+    subroutine get_this_city_ratio(obsData, mdlMean, varIDX, siteLoc, ratio)
+        ! 求矫正城市的浓度平均
+        implicit none
+        ! Input Args
+        real, dimension(:, :, :, :), intent(in) :: obsData ! nvar, nSite, 24, nDays
+        real, dimension(:, :, :, :), intent(in) :: mdlMean ! nvar, nSite, 24, nDays
+        integer, intent(in) :: varIDX ! opt%idxs(1)
+        integer, dimension(:), intent(in) :: siteLoc
+    
+        ! Out Args
+        real, intent(out) :: ratio
+    
+        integer :: i, num
+        integer :: nVaild
+        real :: obsConc
+        real :: mdlConc
+        real :: thisObs
+        real :: thisMdl
+        real, dimension(size(obsData, 3), size(obsData, 4)) :: data2d ! 24, nDays
+        num = 0
+        thisObs = 0.
+        thisMdl = 0.
+        ratio = 1.0
+        do i = 1, size(siteLoc)
+            ! obs opt%idxs(1)
+            data2d = obsData(varIDX, siteLoc(i), :, :)
+            nVaild = COUNT(data2d /= FILLVALUE)
+            obsConc = FILLVALUE
+            if (nVaild > 0) obsConc = sum(data2d, data2d /= FILLVALUE)/nVaild
+            if (nVaild < size(data2d)/3. .or. obsConc <= 0. ) cycle
+    
+            ! model
+            data2d = mdlMean(varIDX, siteLoc(i), :, :)
+            nVaild = COUNT(data2d /= FILLVALUE)
+            mdlConc = FILLVALUE
+            if (nVaild > 0) mdlConc = sum(data2d, data2d /= FILLVALUE)/nVaild
+            if (nVaild < size(data2d)/3. .or. mdlConc <= 0. ) cycle
+            thisObs = thisObs + obsConc
+            thisMdl = thisMdl + mdlConc
+            num = num + 1
+        end do
+        ! if (num > 0) write(*, *) thisObs/num, thisMdl/num
+        if (num > 0) ratio = thisObs/thisMdl
+    end subroutine get_this_city_ratio    
 
 end module mod_routine

@@ -36,6 +36,7 @@ module mod_csvio
         allocate(info%ids(info%n))
         allocate(info%lats(info%n))
         allocate(info%lons(info%n))
+        allocate(info%cityIds(info%n))
 
         call info%locs%reserve(info%n*2) ! 输出化哈希表空间
 
@@ -43,10 +44,10 @@ module mod_csvio
         open(57, file=vFile, status='old', iostat=ierror, form='formatted')
         read(57, *, iostat=ierror) ! 头信息
         do i = 1, info%n
-            if( present(flag) ) then ! city
+            if ( present(flag) ) then ! city
                 read(57, *, iostat=ierror) info%ids(i), buff, info%lons(i), info%lats(i)
             else ! site
-                read(57, *, iostat=ierror) info%ids(i), info%lons(i), info%lats(i)
+                read(57, *, iostat=ierror) info%ids(i), info%lons(i), info%lats(i), buff, buff, info%cityIds(i)
             end if
             call info%locs%set(info%ids(i), i)
         end do
@@ -74,7 +75,7 @@ module mod_csvio
         data3d = FILLVALUE
         if (.not. does_file_exist(vfile) ) then 
             call log_warning(trim(vfile) // ' not exist ...')
-            return
+            stop 1
         end if
         open(50, file=vFile, form='formatted', iostat=ierror, status='old')
         read(50, *, iostat=ierror)
@@ -152,7 +153,6 @@ module mod_csvio
         end if
 
         open(50, file=vFile, form='formatted', iostat=ierror, status='old')
-        write(*, *) trim(vfile)
         do while (.true.) ! 一直读到最后一行
             read(50, *, iostat=ierror) buff, iTime, thisId, data1d
             if(ierror /= 0) exit

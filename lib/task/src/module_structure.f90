@@ -70,6 +70,7 @@ module mod_structure
         integer :: n ! 站点个数
         type(hash) :: locs ! ids => idx, 站点号，索引位置
         character(len=15), dimension(:), allocatable :: ids ! 站点号
+        character(len=15), dimension(:), allocatable :: cityIds ! 城市编号
         real, dimension(:), allocatable :: lats ! 维度
         real, dimension(:), allocatable :: lons ! 经度
     end type pointInfo
