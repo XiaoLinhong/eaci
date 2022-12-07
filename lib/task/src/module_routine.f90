@@ -67,6 +67,7 @@ module mod_routine
         allocate( innov_A(oDim, 1) )
         allocate( HP_A(oDim, mDim) )
         allocate( R_A(oDim, oDim) )
+        R_A = 0.
         idx = 0 ! 有效数据
 
         ! 各时段*各变量*各站点(或者各城市)

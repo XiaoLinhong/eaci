@@ -140,7 +140,8 @@ program main
 
     x_b = 1.
     do i = 1, cityInfo%n
-    ! do i = 236, 236 ! 三沙市
+    !do i = 236, 236 ! 三沙市
+    !do i = 74, 74 ! 南京市
         if (cfg%debug) call log_notice(cityInfo%ids(i))
         ! 当前城市的站点位置
         call get_this_city_loc(cityInfo%ids(i), siteInfo, siteLoc)
@@ -152,6 +153,7 @@ program main
 
             ! 求obs城市浓度/model城市浓度
             call get_this_city_ratio(obsData, mdlMean, cfg%opts(j)%idxs(1), siteLoc, ratio)
+
             if ( ratio*cfg%opts(j)%ratio(1) > 3.0 ) then ! NH3比较特殊
                 if (ratio>10.) x_b(j, i, :) = ratio/1.5 + (ratio - 10)**0.5
                 if (ratio<=10.) x_b(j, i, :) = ratio/1.5
@@ -163,7 +165,13 @@ program main
             ! 处理目标位置的数据: 局地化，膨胀，过滤缺省值
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
                                     mdlData, cfg%opts(j), thisPatch, innov, HP, R, inflation)
-
+            
+            !if (i==74 .and. j==3)  write(*, *) 'innov'
+            !if (i==74 .and. j==3)  write(*, '(10f10.4)') innov(1:10, 1) ! oDim,
+            !if (i==74 .and. j==3)  write(*, *) 'HP'
+            !if (i==74 .and. j==3)  write(*, '(10f10.4)') HP(1:10, 1:10) ! oDim,mDim
+            !if (i==74 .and. j==3)  write(*, *) 'R'
+            !if (i==74 .and. j==3)  write(*, '(10f10.4)') R(1:10, 1:10) ! oDim, oDim
             if (size(siteLoc) > 0) then
                 if (size(innov) == 0 .or. (ratio == 1.0) ) then ! 一定要保障观测数据的质量
                     call log_warning('    '//trim(cfg%opts(j)%name)// ' obs is missing!')
@@ -173,12 +181,12 @@ program main
                 end if
             end if
             ! 诊断信息
-            if (cfg%debug .and. j==1) write(*, '(20A10)') (trim(thisPatch%dcode(k)), k=1, size(thisPatch%dcode))
+            ! if (cfg%debug .and. j==3) write(*, '(15A10)') (trim(thisPatch%dcode(k)), k=1, size(thisPatch%dcode))
             ! EnKF
             if (cfg%opts(j)%inflation) HP = HP*inflation
             
             do k = 1, cfg%nSetor
-                ! 计算排放扰动项
+                ! 计算排放扰动项 nvar, nCity, nSector, mDim
                 P = ( adjData(cfg%opts(j)%idx, i:i, k, :) - adjMean(cfg%opts(j)%idx, i, k) )/(cfg%mDim-1.)**0.5 !
                 if (cfg%opts(j)%inflation) P = P*inflation
                 call enkf(x_b(j:j, i:i, k), P, innov, HP, R, cfg%opts(j)%lowRank)

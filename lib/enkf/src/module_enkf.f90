@@ -21,48 +21,83 @@ module mod_enkf
         integer :: oDim, mDim
         real, dimension(size(x_b, 1), size(innov)) :: PEHP ! 1, oDim
         real, dimension(size(innov),  size(innov)) :: RR ! oDim, oDim
+        real, dimension(size(innov),  size(innov)) :: RR_I ! oDim, oDim
         real, dimension(size(x_b, 1), size(innov)) :: gainMatrix ! 1, oDim
 
         RR = R
         oDim = size(HP, 1)
         mDim = size(HP, 2)
+        ! (R + HP(HP): 模式和观测误差和
         call sgemm('n','t', oDim, oDim, mDim, &
                                1.0, HP, oDim, &
                                     HP, oDim, &
                                1.0, RR, oDim)
 
-        if (.not. lowRank) RR = get_penrose_inv( RR )
         ! 特征值分解: R -> Z*eig*Z` 
         ! 可以对矩阵进行降维度: (R + HBH')^-1 = (R + HP(HP)')^-1 = VE^-1V'
-        ! write(*, *) '===================================== RR: '
-        ! call print_matrix(RR)
-        if (lowRank) call low_rank(RR) ! HP(HP)': 正定矩阵
-
-        ! gainMatrix = P(HP)'RR
-        PEHP = matmul(P, transpose(HP))
-        gainMatrix = matmul(PEHP, RR)
+        if (lowRank)  RR_I = low_rank(RR) ! HP(HP)': 正定矩阵
+        if (.not. lowRank) RR_I = get_penrose_inv( RR ) ! 这是伪逆
+        
+        ! gainMatrix = P(HP)'RR_I
+        PEHP = matmul(P, transpose(HP)) ! 排放和浓度的关系
+        gainMatrix = matmul(PEHP, RR_I)
         x_b = x_b + matmul(gainMatrix, innov)
         where( x_b > 10.) x_b = 10.
         where( x_b < 0.1) x_b = 0.1
 
-        ! write(*, *) '===================================== EP: '
-        ! call print_matrix(P)
-        ! write(*, *) '===================================== HP: '
-        ! call print_matrix(HP)
-        ! write(*, *) '===================================== innov: '
-        ! call print_matrix(innov)
-        ! write(*, *) '===================================== R: '
-        ! call print_matrix(R)
-        ! write(*, *) '===================================== RR: '
-        ! call print_matrix(RR)
-        ! write(*, *) '===================================== PE*HP: '
-        ! call print_matrix(PEHP)
-        ! write(*, *) '===================================== x_b: '
-        ! write(*, '(10F10.2)') x_b
+        if (.false.) then ! 诊断输出
+            write(*, *) '===================================== R: ', shape(R)
+            call print_matrix(R)
+            write(*, *) '===================================== RR: ', shape(RR)
+            call print_matrix(RR)
+            write(*, *) '===================================== RR_I: ', shape(RR_I)
+            call print_matrix(RR_I)
+            write(*, *) '===================================== check inv: '
+            call print_matrix( matmul(RR, RR_I) )
+            write(*, *) '===================================== PE: ', shape(P)
+            call print_matrix(P)
+            write(*, *) '===================================== HP: ', shape(HP)
+            call print_matrix(HP)
+            write(*, *) '===================================== innov: ', shape(innov)
+            call print_matrix(innov)
+            write(*, *) '===================================== PE*HP: ', shape(PEHP)
+            call print_matrix(PEHP)
+            write(*, *) '===================================== gainMatrix: ', shape(gainMatrix)
+            call print_matrix(gainMatrix)
+            write(*, *) '===================================== x_b: '
+            write(*, '(10F10.2)') x_b
+        end if 
 
     end subroutine enkf
 
     function get_penrose_inv(A) result(A_I)
+        ! 
+        ! Abtract: To calculate the Penrose inverse of A
+        implicit none
+        ! declare the dummy varibles
+        real, dimension(:, :), intent(in)  :: A
+        real, dimension(size(A,1), size(A,2)) :: A_I
+    
+        ! declare the local varibles    
+        integer :: n
+        integer,dimension(size(A,1))        :: IPIV ! The pivot indices from DGETRF; for1<=i<=N
+        real(kind=8),dimension(size(A,1))   :: WORK
+        integer                             :: INFO ! = 0:  successful exit
+        real(kind=8),dimension(size(A,1), size(A,2)) :: A_tmp
+
+        integer :: i
+        A_tmp = dble(A)
+        n = size(A, 1)
+        call dgetrf( n, n, A_tmp, n, IPIV, INFO ) ! LU分解(Sivan Toledo递归算法)
+        ! computes the inverse of a matrix using the LU factorization computed
+        ! by DGETRF.
+        call dgetri( n, A_tmp, n, IPIV, WORK, n, INFO ) 
+
+        if (INFO /= 0) return
+        A_I = sngl(A_tmp)
+       end function get_penrose_inv
+
+    function get_penrose_inv1(A) result(A_I)
         ! Abtract: To calculate the Penrose inverse of A
         implicit none
         ! declare the dummy varibles
@@ -85,7 +120,8 @@ module mod_enkf
         call sgetri( n, A_I, n, IPIV, WORK, n, INFO )
         if (INFO /= 0) return
 
-    end function get_penrose_inv
+    end function get_penrose_inv1
+
 
     subroutine get_eigenvalues(oDim, R, Z, eigenvalues)
         ! Compute eigenvalue decomposition of R -> Z*eig*Z` 
@@ -120,10 +156,11 @@ module mod_enkf
         eigenvalues = EE
     end subroutine get_eigenvalues
 
-    subroutine low_rank(RR)
+    function low_rank(RR) result(RR_I)
         ! RR = Z*EE*Z'
         implicit none
-        real, dimension(:, :), intent(inout) :: RR ! oDim, oDim
+        real, dimension(:, :), intent(in) :: RR ! oDim, oDim
+        real, dimension(size(RR, 1), size(RR, 1)) :: RR_I ! oDim, oDim
 
         integer :: oDim
         real, dimension(size(RR, 1)) :: eigenvalues ! oDim, oDim
@@ -154,8 +191,8 @@ module mod_enkf
             end if
         end do
         ! Z*EE*Z'
-        RR = matmul(matmul(Z(:, idx:oDim), EE(idx:oDim, idx:oDim)), transpose(Z(:, idx:oDim)) )
-    end subroutine low_rank
+        RR_I = matmul(matmul(Z(:, idx:oDim), EE(idx:oDim, idx:oDim)), transpose(Z(:, idx:oDim)) )
+    end function low_rank
 
     subroutine print_matrix(data)
         ! 获取站点列表
@@ -167,13 +204,13 @@ module mod_enkf
         integer :: i
         integer :: nx, ny
 
-        nx = min(20, size(data, 1))
+        nx = min(19, size(data, 1))
 
         do i = 1, nx
-            if (size(data, 2) > 20) then
-                write(*, '(20F8.3)') data(i, 1:20)
+            if (size(data, 2) > 19) then
+                write(*, '(20F9.3)') data(i, 1:19)
             else
-                write(*, '(20F8.3)') data(i, :)
+                write(*, '(20F9.3)') data(i, :)
             end if
         end do
 
