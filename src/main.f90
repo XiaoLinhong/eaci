@@ -140,12 +140,11 @@ program main
 
     x_b = 1.
     do i = 1, cityInfo%n
-    !do i = 236, 236 ! 三沙市
     !do i = 74, 74 ! 南京市
         if (cfg%debug) call log_notice(cityInfo%ids(i))
         ! 当前城市的站点位置
         call get_this_city_loc(cityInfo%ids(i), siteInfo, siteLoc)
-        ! 直辖县级市、澳门、香港、台湾, 行政区里面可能是没有观测站点的
+        ! 直辖县级市、澳门、香港、台湾等, 行政区里面可能是没有观测站点的
         if (size(siteLoc) == 0) call log_print('    '//cityInfo%ids(i)// ' has no obs site')
         do j = 1, cfg%nVar
             ! 扫描目标位置周围的观测点位， 不同变量的检索范围可以不一样
@@ -166,12 +165,6 @@ program main
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
                                     mdlData, cfg%opts(j), thisPatch, innov, HP, R, inflation)
             
-            !if (i==74 .and. j==3)  write(*, *) 'innov'
-            !if (i==74 .and. j==3)  write(*, '(10f10.4)') innov(1:10, 1) ! oDim,
-            !if (i==74 .and. j==3)  write(*, *) 'HP'
-            !if (i==74 .and. j==3)  write(*, '(10f10.4)') HP(1:10, 1:10) ! oDim,mDim
-            !if (i==74 .and. j==3)  write(*, *) 'R'
-            !if (i==74 .and. j==3)  write(*, '(10f10.4)') R(1:10, 1:10) ! oDim, oDim
             if (size(siteLoc) > 0) then
                 if (size(innov) == 0 .or. (ratio == 1.0) ) then ! 一定要保障观测数据的质量
                     call log_warning('    '//trim(cfg%opts(j)%name)// ' obs is missing!')
