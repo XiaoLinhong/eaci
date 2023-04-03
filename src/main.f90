@@ -153,7 +153,7 @@ program main
             ! 求obs城市浓度/model城市浓度
             call get_this_city_ratio(obsData, mdlMean, cfg%opts(j)%idxs(1), siteLoc, ratio)
 
-            if ( ratio*cfg%opts(j)%ratio(1) > 3.0 ) then ! NH3比较特殊
+            if ( cfg%opts(j)%ratio(1) > 0.5 .and. ratio*cfg%opts(j)%ratio(1) > 3.0 ) then ! NH3比较特殊
                 if (ratio>10.) x_b(j, i, :) = ratio/1.5 + (ratio - 10)**0.5
                 if (ratio<=10.) x_b(j, i, :) = ratio/1.5
                 if (x_b(j, i, 1) > 20.) x_b(j, i, :) = 20. ! 过于大的值
