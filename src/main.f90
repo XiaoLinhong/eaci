@@ -165,14 +165,13 @@ program main
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
                                     mdlData, cfg%opts(j), thisPatch, innov, HP, R, inflation)
             
-            if (size(siteLoc) > 0) then
-                if (size(innov) == 0 .or. (ratio == 1.0) ) then ! 一定要保障观测数据的质量
-                    call log_warning('    '//trim(cfg%opts(j)%name)// ' obs is missing!')
-                    cycle
-                ! else
-                !     call log_print('    '//trim(cfg%opts(j)%name)// ' is ready')
-                end if
+            if (size(innov) == 0 .or. (size(siteLoc) > 0 .and. ratio == 1.0) ) then ! 一定要保障观测数据的质量
+                call log_warning('    '//trim(cfg%opts(j)%name)// ' obs is missing!')
+                cycle
+            ! else
+            !     call log_print('    '//trim(cfg%opts(j)%name)// ' is ready')
             end if
+
             ! 诊断信息
             ! if (cfg%debug .and. j==3) write(*, '(15A10)') (trim(thisPatch%dcode(k)), k=1, size(thisPatch%dcode))
             ! EnKF
