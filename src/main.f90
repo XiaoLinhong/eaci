@@ -151,21 +151,14 @@ program main
             call thisPatch%scan(cityInfo%lons(i), cityInfo%lats(i), cfg%opts(j)%radius, cfg%opts(j)%length, siteInfo)
 
             ! 求obs城市浓度/model城市浓度
-            call get_this_city_ratio(obsData, mdlMean, cfg%opts(j)%idxs(1), siteLoc, ratio)
-
-            if ( cfg%opts(j)%ratio(1) > 0.5 .and. ratio*cfg%opts(j)%ratio(1) > 3.0 ) then ! NH3比较特殊
-                if (ratio>10.) x_b(j, i, :) = ratio/1.5 + (ratio - 10)**0.5
-                if (ratio<=10.) x_b(j, i, :) = ratio/1.5
-                if (x_b(j, i, 1) > 20.) x_b(j, i, :) = 20. ! 过于大的值
-                call log_warning('    '//trim(cfg%opts(j)%varNames(1))// ' of model  is very small !')
-                cycle
-            end if
+            ! call get_this_city_ratio(obsData, mdlMean, cfg%opts(j)%idxs(1), siteLoc, ratio)
 
             ! 处理目标位置的数据: 局地化，膨胀，过滤缺省值
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
                                     mdlData, cfg%opts(j), thisPatch, innov, HP, R, inflation)
             
-            if (size(innov) == 0 .or. (size(siteLoc) > 0 .and. ratio == 1.0) ) then ! 一定要保障观测数据的质量
+            !if (size(innov) == 0 .or. (size(siteLoc) > 0 .and. ratio == 1.0) ) then ! 一定要保障观测数据的质量
+            if (size(innov) == 0) then ! 一定要保障观测数据的质量
                 call log_warning('    '//trim(cfg%opts(j)%name)// ' obs is missing!')
                 cycle
             ! else
@@ -187,11 +180,6 @@ program main
                 if(x_b(j, i, k) < cfg%opts(j)%vmin) x_b(j, i, k) = cfg%opts(j)%vmin ! 处理极小值
                 if(x_b(j, i, k) > cfg%opts(j)%vmax) x_b(j, i, k) = cfg%opts(j)%vmax ! 处理极大值
 
-                ! 限制：调优方向必须和浓度偏差保持一致
-                if (ratio /= 1.) then
-                    if (ratio>1 .and. x_b(j, i, k)<1) x_b(j, i, k) = 1.0 ! 调优方向反了？
-                    if (ratio<1 .and. x_b(j, i, k)>1) x_b(j, i, k) = 1.0 ! 调优方向反了？
-                end if
             end do
             deallocate(innov, HP, R)
         end do
@@ -207,8 +195,6 @@ program main
         call read_raw_adj(cfg%dftFileName, cityInfo%locs, cfg%sectorNames(1:cfg%nSetor), x_a)
         x_b = x_a * x_b
     end if
-    where (x_b < 0.02) x_b = 0.02 - (0.02 - x_b)*0.5 ! 处理极小值
-    where (x_b > 99.0) x_b = 99.0 + (x_b - 99.0)**0.5 ! 处理极大值
     if (trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name, cfg%sectorNames(1:cfg%nSetor))
 
 end program main
