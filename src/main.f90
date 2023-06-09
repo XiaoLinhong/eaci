@@ -138,9 +138,16 @@ program main
     allocate( x_b(cfg%nVar, cityInfo%n, cfg%nSetor) )
     allocate( P(1, cfg%mDim) ) ! 排放扰动
 
+    ! 累乘权重
+    allocate( x_a(cfg%nVar, cityInfo%n, cfg%nSetor) )
+    x_a = 1.
+    if (does_file_exist(cfg%dftFileName)) then
+        call read_raw_adj(cfg%dftFileName, cityInfo%locs, cfg%sectorNames(1:cfg%nSetor), x_a)
+    end if
+
     x_b = 1.
     do i = 1, cityInfo%n
-    !do i = 74, 74 ! 南京市
+    !do i = 343, 343 ! 南京市
         if (cfg%debug) call log_notice(cityInfo%ids(i))
         ! 当前城市的站点位置
         call get_this_city_loc(cityInfo%ids(i), siteInfo, siteLoc)
@@ -152,6 +159,7 @@ program main
 
             ! 求obs城市浓度/model城市浓度
             call get_this_city_ratio(obsData, mdlMean, cfg%opts(j)%idxs(1), siteLoc, ratio)
+            !write(*,*) j, ratio, cfg%opts(j)%idxs(1)
 
             ! 处理目标位置的数据: 局地化，膨胀，过滤缺省值
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
@@ -182,9 +190,24 @@ program main
 
                 ! 限制: 增加鲁棒性, 排放的不确定性太大，或者非线性太强，不好调整
                 if (ratio /= 1. ) then
-                    if (ratio>2.0 .and. x_b(j, i, k)<1) x_b(j, i, k) = 1.1 ! 调优方向反了？
-                    if (ratio<0.5 .and. x_b(j, i, k)>1) x_b(j, i, k) = 0.9 ! 调优方向反了？
+                    !if (ratio<0.5 .and. x_b(j, i, k)>1) call log_warning('   '//trim(cfg%opts(j)%name)//' '//cfg%sectorNames(k)//' enkf is wrong! nonlinearity')
+                    !if (ratio>1.5 .and. x_b(j, i, k)<1) call log_warning('   '//trim(cfg%opts(j)%name)//' '//cfg%sectorNames(k)//' enkf is wrong! emis is too samll')
+                    
+                    ! 单次调优: 强制调优方向一致，现在大的偏差大多了,
+                    ! 排放的扰动，会和浓度呈现负相关！！！
+                    !if (ratio>1.2 .and. x_b(j, i, k)<1) x_b(j, i, k) = 1.02
+                    !if (ratio<0.8 .and. x_b(j, i, k)>1) x_b(j, i, k) = 0.98
+                    if (ratio>1. .and. x_b(j, i, k)<1.) x_b(j, i, k) = 1.
+                    if (ratio<1. .and. x_b(j, i, k)>1.) x_b(j, i, k) = 1.
+
                 end if
+                x_a(j, i, k) = x_a(j, i, k) * x_b(j, i, k)
+                ! 整体调优方向有问题
+                !if (ratio>1.1 .and. x_a(j, i, k)<ratio/10.) x_a(j, i, k) = 1. ! 调优方向反了？
+                !if (ratio<0.9 .and. x_a(j, i, k)>ratio*10.) x_a(j, i, k) = 1. ! 调优方向反了？
+                if (size(siteLoc) == 0) then ! 本地没有观测约束，这个关系很弱
+                   x_a(j, i, k) = x_a(j, i, k)**0.5
+                end if 
 
             end do
             deallocate(innov, HP, R)
@@ -196,11 +219,12 @@ program main
     call write_data_csv(cfg%outFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name, cfg%sectorNames(1:cfg%nSetor))
 
     ! 累乘权重
-    if (does_file_exist(cfg%dftFileName)) then
-        allocate( x_a(cfg%nVar, cityInfo%n, cfg%nSetor) )
-        call read_raw_adj(cfg%dftFileName, cityInfo%locs, cfg%sectorNames(1:cfg%nSetor), x_a)
-        x_b = x_a * x_b
-    end if
-    if (trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name, cfg%sectorNames(1:cfg%nSetor))
+    !if (does_file_exist(cfg%dftFileName)) then
+    !    allocate( x_a(cfg%nVar, cityInfo%n, cfg%nSetor) )
+    !    call read_raw_adj(cfg%dftFileName, cityInfo%locs, cfg%sectorNames(1:cfg%nSetor), x_a)
+    !    x_a = x_a * x_b
+    !end if
+
+    if (trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_a, cityInfo, cfg%opts(1:cfg%nVar)%name, cfg%sectorNames(1:cfg%nSetor))
 
 end program main
