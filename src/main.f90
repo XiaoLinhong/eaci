@@ -153,13 +153,12 @@ program main
             ! 求obs城市浓度/model城市浓度
             call get_this_city_ratio(obsData, mdlMean, cfg%opts(j)%idxs(1), siteLoc, ratio)
 
-            if ( cfg%opts(j)%ratio(1) > 0.5 .and. ratio*cfg%opts(j)%ratio(1) > 3.0 ) then ! NH3比较特殊
-                if (ratio>10.) x_b(j, i, :) = ratio/1.5 + (ratio - 10)**0.5
-                if (ratio<=10.) x_b(j, i, :) = ratio/1.5
-                if (x_b(j, i, 1) > 20.) x_b(j, i, :) = 20. ! 过于大的值
-                call log_warning('    '//trim(cfg%opts(j)%varNames(1))// ' of model  is very small !')
-                cycle
-            end if
+            ! 排放太小，快速调整, 最好是一次
+            !if ( cfg%opts(j)%ratio(1) > 0.9 .and. ratio > 3.0) then 
+            !    x_b(j, i, :) = 2.0 
+            !    call log_warning('    '//trim(cfg%opts(j)%varNames(1))// ' of model is very small !')
+            !    cycle
+            !end if
 
             ! 处理目标位置的数据: 局地化，膨胀，过滤缺省值
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
@@ -178,20 +177,24 @@ program main
             if (cfg%opts(j)%inflation) HP = HP*inflation
             
             do k = 1, cfg%nSetor
-                ! 计算排放扰动项 nvar, nCity, nSector, mDim
-                P = ( adjData(cfg%opts(j)%idx, i:i, k, :) - adjMean(cfg%opts(j)%idx, i, k) )/(cfg%mDim-1.)**0.5 !
-                if (cfg%opts(j)%inflation) P = P*inflation
-                call enkf(x_b(j:j, i:i, k), P, innov, HP, R, cfg%opts(j)%lowRank)
+                ! 计算排放扰动项 nvar, nCity, nSector, mDim:
+                ! 这个污染物可能不扰动
+                if (maxval( adjData(cfg%opts(j)%idx, i, k, :) ) > 1.0 ) then 
+                    P = ( adjData(cfg%opts(j)%idx, i:i, k, :) - adjMean(cfg%opts(j)%idx, i, k) )/(cfg%mDim-1.)**0.5 !
+                    if (cfg%opts(j)%inflation) P = P*inflation
+                    call enkf(x_b(j:j, i:i, k), P, innov, HP, R, cfg%opts(j)%lowRank)
 
-                ! 限制: 增加鲁棒性
-                if(x_b(j, i, k) < cfg%opts(j)%vmin) x_b(j, i, k) = cfg%opts(j)%vmin ! 处理极小值
-                if(x_b(j, i, k) > cfg%opts(j)%vmax) x_b(j, i, k) = cfg%opts(j)%vmax ! 处理极大值
-
-                ! 限制：调优方向必须和浓度偏差保持一致
-                if (ratio /= 1.) then
-                    if (ratio>1 .and. x_b(j, i, k)<1) x_b(j, i, k) = 1.0 ! 调优方向反了？
-                    if (ratio<1 .and. x_b(j, i, k)>1) x_b(j, i, k) = 1.0 ! 调优方向反了？
+                    ! 限制: 增加鲁棒性
+                    if(x_b(j, i, k) < cfg%opts(j)%vmin) x_b(j, i, k) = cfg%opts(j)%vmin ! 处理极小值
+                    if(x_b(j, i, k) > cfg%opts(j)%vmax) x_b(j, i, k) = cfg%opts(j)%vmax ! 处理极大值
                 end if
+
+                ! 限制：调优方向必须和浓度偏差保持一致: 不做限制，感觉还是不太好
+                ! 不是和NOx和臭氧的负相关, 这个地方不应该这么去限制
+                !if (ratio /= 1.) then
+                !    if (ratio>1 .and. x_b(j, i, k)<1) x_b(j, i, k) = 1.0 ! 调优方向反了？
+                !    if (ratio<1 .and. x_b(j, i, k)>1) x_b(j, i, k) = 1.0 ! 调优方向反了？
+                !end if
             end do
             deallocate(innov, HP, R)
         end do
@@ -207,8 +210,8 @@ program main
         call read_raw_adj(cfg%dftFileName, cityInfo%locs, cfg%sectorNames(1:cfg%nSetor), x_a)
         x_b = x_a * x_b
     end if
-    where (x_b < 0.02) x_b = 0.02 - (0.02 - x_b)*0.5 ! 处理极小值
-    where (x_b > 99.0) x_b = 99.0 + (x_b - 99.0)**0.5 ! 处理极大值
+    ! where (x_b < 0.02) x_b = 0.02 - (0.02 - x_b)*0.5 ! 处理极小值
+    ! where (x_b > 99.0) x_b = 99.0 + (x_b - 99.0)**0.5 ! 处理极大值
     if (trim(cfg%dftFileName) /= '-') call write_data_csv(cfg%dftFileName, x_b, cityInfo, cfg%opts(1:cfg%nVar)%name, cfg%sectorNames(1:cfg%nSetor))
 
 end program main

@@ -19,7 +19,7 @@
  mdlInfo%fileName = '../data/ens5/edas/camx/[FLAG]/12/station_forecast_normal_hourly_camx_d01_%Y%m%d.txt',
  mdlInfo%varNames = 'PM25', 'PMC', 'CO', 'NO2', 'SO2', 'O3', ! 和观测一样的顺序
 
- !rawFileName = ' /public/home/bedrock/lava/output/data/base/raw/camx/hourly/site/12/station_forecast_normal_hourly_camx_d01_%Y%m%d.txt'
+ !rawFileName = '/public/home/bedrock/lava/output/data/base/raw/camx/hourly/site/12/station_forecast_normal_hourly_camx_d01_%Y%m%d.txt'
 
  adjInfo%fileName = '../data/ens5/perb/adj_[FLAG].csv',
  adjInfo%varNames = 'PM25', 'PMC', 'CO', 'NOx', 'SO2', 'NMVOC', 'NH3', ! 固定顺序
