@@ -138,9 +138,16 @@ program main
     allocate( x_b(cfg%nVar, cityInfo%n, cfg%nSetor) )
     allocate( P(1, cfg%mDim) ) ! 排放扰动
 
+    ! 累乘权重
+    allocate( x_a(cfg%nVar, cityInfo%n, cfg%nSetor) )
+    x_a = 1.
+    if (does_file_exist(cfg%dftFileName)) then
+        call read_raw_adj(cfg%dftFileName, cityInfo%locs, cfg%sectorNames(1:cfg%nSetor), x_a)
+    end if
+
     x_b = 1.
     do i = 1, cityInfo%n
-    !do i = 74, 74 ! 南京市
+    !do i = 343, 343 ! 南京市
         if (cfg%debug) call log_notice(cityInfo%ids(i))
         ! 当前城市的站点位置
         call get_this_city_loc(cityInfo%ids(i), siteInfo, siteLoc)
@@ -164,7 +171,8 @@ program main
             call get_this_city_date(obsData, cfg%obsInfo%error(1:cfg%obsInfo%nVar), mdlMean,&
                                     mdlData, cfg%opts(j), thisPatch, innov, HP, R, inflation)
             
-            if (size(innov) == 0 .or. (size(siteLoc) > 0 .and. ratio == 1.0) ) then ! 一定要保障观测数据的质量
+            !if (size(innov) == 0 .or. (size(siteLoc) > 0 .and. ratio == 1.0) ) then ! 一定要保障观测数据的质量
+            if (size(innov) == 0) then ! 一定要保障观测数据的质量
                 call log_warning('    '//trim(cfg%opts(j)%name)// ' obs is missing!')
                 cycle
             ! else

@@ -175,7 +175,7 @@ module mod_csvio
         real, dimension(:), intent(inout) :: data1d
 
         ! 沙尘
-        if (data1d(2) > 200 .and. data1d(1) > data1d(2)/2.0 ) data1d(1:2) = FILLVALUE
+        if (data1d(2) > 300 .and. data1d(1) < data1d(2)/3.0 ) data1d(1:2) = FILLVALUE
         ! 浓度倒挂
         if (data1d(2) < data1d(1) .and. data1d(1) > 0. ) data1d(2) = data1d(1) + 1.0
         ! PM10 => PMC
