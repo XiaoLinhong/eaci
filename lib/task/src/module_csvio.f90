@@ -182,8 +182,8 @@ module mod_csvio
         if ( data1d(2) > 0. .and. data1d(1) > 0. ) data1d(2) = data1d(2) - data1d(1)
         ! 质控
         where(data1d > 1000.) data1d = FILLVALUE
-        ! CO: mg => ug
-        data1d(3) = data1d(3)*1000.
+        ! CO: mg => ug/10. CO太大了，容易溢出？
+        data1d(3) = data1d(3)*100.
         where(data1d <  0.) data1d = FILLVALUE
         where(data1d == 0.) data1d = 0.01 ! 尽量不要出现为0的情况
 

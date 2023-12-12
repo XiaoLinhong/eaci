@@ -25,6 +25,8 @@ module mod_structure
         real :: length = 0. ! 去相关化长度
         real :: vmin = 0. ! 调整的最小值
         real :: vmax = 0. ! 调整的最大值
+        real :: r1 = 0. ! 相关系数剔除下界
+        real :: r2 = 0. ! 相关系数剔除上界
         integer :: nTime = 0 ! 多长时间平均
         integer :: localisation = 0 ! 距地化方案
         logical :: city = .false. ! 是否计算城市平均
@@ -49,7 +51,7 @@ module mod_structure
         integer :: nHour ! 检索多小时的模拟数据 nHour = nDay*24
         character(len=LENVAR) :: begTime ! 开始时间
         ! sectors
-        integer :: nSetor
+        integer :: nSector
         character(len=LENVAR), dimension(MAXVAR) :: sectorNames = '-' ! 行业名称
         ! meta
         character(len=LENFILENAME) :: siteFileName ! 站点

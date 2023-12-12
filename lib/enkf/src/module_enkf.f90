@@ -28,11 +28,11 @@ module mod_enkf
         oDim = size(HP, 1)
         mDim = size(HP, 2)
         ! (R + HP(HP): 模式和观测误差和
+        ! RR = R + matmul(HP, transpose(HP))
         call sgemm('n','t', oDim, oDim, mDim, &
                                1.0, HP, oDim, &
                                     HP, oDim, &
                                1.0, RR, oDim)
-
         ! 特征值分解: R -> Z*eig*Z` 
         ! 可以对矩阵进行降维度: (R + HBH')^-1 = (R + HP(HP)')^-1 = VE^-1V'
         if (lowRank)  RR_I = low_rank(RR) ! HP(HP)': 正定矩阵
@@ -42,10 +42,10 @@ module mod_enkf
         PEHP = matmul(P, transpose(HP)) ! 排放和浓度的关系
         gainMatrix = matmul(PEHP, RR_I)
         x_b = x_b + matmul(gainMatrix, innov)
-        where( x_b > 10.) x_b = 10.
-        where( x_b < 0.1) x_b = 0.1
+        ! where( x_b > 10.) x_b = 10.
+        ! where( x_b < 0.1) x_b = 0.1
 
-        if (.false.) then ! 诊断输出
+        if (.true.) then ! 诊断输出
             write(*, *) '===================================== R: ', shape(R)
             call print_matrix(R)
             write(*, *) '===================================== RR: ', shape(RR)
@@ -64,8 +64,8 @@ module mod_enkf
             call print_matrix(PEHP)
             write(*, *) '===================================== gainMatrix: ', shape(gainMatrix)
             call print_matrix(gainMatrix)
-            write(*, *) '===================================== x_b: '
-            write(*, '(10F10.2)') x_b
+            write(*, *) '====================================='
+            write(*, '(A10, 10F10.2)'), 'x_b:', x_b
         end if 
 
     end subroutine enkf

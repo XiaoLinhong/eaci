@@ -14,7 +14,7 @@ module mod_routine
 
     contains
 
-    subroutine get_this_city_date(obsData, obsErr, mdlMean, mdlData, opt, patch, innov, HP, R, inflation)
+    subroutine get_this_city_date(obsData, obsErr, mdlMean, mdlData, PE, opt, patch, innov, HP, R, inflation)
 
         implicit none
         ! Input Args
@@ -22,6 +22,8 @@ module mod_routine
         real, dimension(:), intent(in) :: obsErr ! nvar
         real, dimension(:, :, :, :), intent(in) :: mdlMean ! nvar, nSite, 24, nDays
         real, dimension(:, :, :, :, :), intent(in) :: mdlData ! nvar, nSite, 24, nDays, mDim
+        real, dimension(:) :: PE ! mDim: emission coefficient
+
         type(optMeta), intent(in) :: opt
         type(scanner), intent(in) :: patch
 
@@ -35,6 +37,8 @@ module mod_routine
         integer :: i, j, k, ii, idx, nn
         integer :: iBeg, iEnd
         real, parameter :: LENGHT = 2. ! 特征长度，KM
+        real :: corr ! 相关系数
+        real :: thisRate ! 排放能解释浓度多大的变化 < 1.0
         real :: decay ! 距离衰减系数
         integer :: oDim, mDim, nVar, nPoint, nSlice, nSite
         integer :: nVaildObs, nVaildMdl, nVaildMean
@@ -117,21 +121,29 @@ module mod_routine
                     nVaildMean = COUNT(mdl4d(1:nn, :, :, :) /= FILLVALUE)
                     if ( nVaildMean < size(mdl4d(1:nn, :, :, :))/2. ) cycle
                     thisMean = sum(mdl4d(1:nn, :, :, :) , mdl4d(1:nn, :, :, :) /= FILLVALUE)/nVaildMean
+                    
+                    ! 判断相关系数: 去掉噪音
+                    corr = get_coefficient(PE, mdl4d(1:nn, :, :, :))
+                    if ( abs(corr*decay) < 0.2 ) cycle ! 相关性弱的，就不考虑！
+                    ! 有一些虚假负相关？剔除掉吧
+                    if ( corr*decay <  opt%r1 .or. corr*decay > opt%r2 ) cycle
+                    ! 模式的数值很小时, 偏差太大了
+                    ! 排放能解释模式多大的变化: 模拟变化和误差之间的关系,
+                    thisRate = get_change_rate(mdl4d(1:nn, :, :, :), thisObs)
 
-                    ! 模式的数值很小时, 偏差太大了, 就不做为调整系数了
-                    ! if ( thisRaw < thisObs/5.0 ) cycle ! 最好在一个正常的范围
-
+                    if (opt%city) write(*, '(A10, 10F8.4, 10F8.4)') patch%dcode(k), corr, thisRate ! 可能越界吗
+                    if (.not. opt%city) write(*, '(A10, 10F8.4, 10F8.4)') patch%cityIds(k), corr, thisRate ! 可能越界吗
                     ! 观测误差矩阵
                     idx = idx + 1
                     R_A(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差
                     R_A(idx, idx) = R_A(idx, idx) + (opt%delta/(LENGHT*nn))**0.2*R_A(idx, idx)/2. ! 代表性误差
                     ! sqr(delta/L)*err, L为代表性误差特征长度, err是估计出来的
                     ! 局地化
-                    R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化, 增大观测误差， 减少矫正
+                    R_A(idx, idx) = (R_A(idx, idx) / factor)**2 ! 局地化, 增大观测误差， 减少矫正
+                    !R_A(idx, idx) = R_A(idx, idx) / factor ! 局地化, 增大观测误差， 减少矫正
 
-                    !=========== 可以用鲁棒性更强的方式，来求innov ！
-                    ! innov = y_o - Hx_b: 应该要考虑一下极值的影响!
-                    innov_A(idx, 1) = (thisObs - thisRaw) !* factor
+                    !=========== 可以用鲁棒性更强的方式，求innov ！
+                    innov_A(idx, 1) = (thisObs - thisRaw)*thisRate !* factor
 
                     ! 集合成员
                     do ii = 1, mDim
@@ -267,4 +279,86 @@ module mod_routine
         if (num > 0) ratio = thisObs/thisMdl
     end subroutine get_this_city_ratio    
 
+    real function get_coefficient(PE, mdl4d) result(r)
+        ! 计算膨胀系数
+        implicit none
+        ! Input Args
+        real, dimension(:), intent(in) :: PE ! mDim: emission coefficient
+        real, dimension(:, :, :, :), intent(in) :: mdl4d ! nSite, nTime, nDay, mDim
+
+
+        ! local varbile
+        integer :: i, n
+        integer :: nVaildMdl
+
+        real :: denominator
+        real :: mean1, mean2
+        real, dimension(size(PE)) :: a1, a2
+
+        r = 0.
+        n = 0
+        a1 = 0.
+        a2 = 0.
+        do i = 1, size(PE)
+            nVaildMdl = COUNT(mdl4d(:, :, :, i) /= FILLVALUE)
+            if (nVaildMdl > 0) then
+                n = n + 1
+                a1(n) = PE(i)
+                a2(n) = sum(mdl4d(:, :, :, i), mdl4d(:, :, :, i) /= FILLVALUE)/nVaildMdl
+            end if
+        end do 
+
+        mean1 = sum(a1)/n
+        mean2 = sum(a2)/n
+        denominator = sum((a1 - mean1)**2)**0.5 * sum((a2 - mean2)**2)**0.5
+
+        if (denominator /= 0) then
+            r = sum((a1 - mean1)*(a2 - mean2)) / denominator
+        end if
+
+    end function get_coefficient
+
+    real function get_change_rate(mdl4d, thisObs) result(rate)
+        ! 计算膨胀系数
+        implicit none
+        ! Input Args
+        real, dimension(:, :, :, :), intent(in) :: mdl4d ! nSite, nTime, nDay, mDim
+        real, intent(in), optional :: thisObs
+
+
+        ! local varbile
+        integer :: i, n
+        integer :: nVaildMdl
+
+        real :: thisMean, thisMax
+        real, dimension(size(mdl4d, 4)) :: a1
+
+        n = 0
+        a1 = 0. ! 初始化
+        rate = 0.5 ! 默认排放的变化只能解释一半的偏差问题！
+
+        do i = 1, size(mdl4d, 4)
+            nVaildMdl = COUNT(mdl4d(:, :, :, i) /= FILLVALUE)
+            if (nVaildMdl > 0) then
+                n = n + 1
+                a1(n) = sum(mdl4d(:, :, :, i), mdl4d(:, :, :, i) /= FILLVALUE)/nVaildMdl
+            end if
+        end do
+
+        thisMax = maxval(a1)
+        if (thisMax /= 0 .and. n>0) then
+            thisMean = sum(a1)/n
+            if (present(thisObs)) then
+                rate = (sum((a1 - thisMean)**2)**0.5/n)/abs(thisMean - thisObs)
+            else
+                rate = (sum((a1 - thisMean)**2)**0.5/n)/thisMean
+            end if
+        end if
+        ! 排放对观测的解释程度
+        if (rate > 0.95) rate = 0.95
+        if (rate < 0.01) rate = 0.01
+
+    end function get_change_rate
+
 end module mod_routine
+
