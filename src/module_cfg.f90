@@ -71,12 +71,13 @@ module mod_cfg
         real :: vmax = 10.
         real :: r1 = 0.2
         real :: r2 = 1.0
+        real :: validR = 0.25
         ! enkf
         type(optMeta), dimension(MAXVAR) :: opts
 
         NAMELIST /share/ debug, mDim, nHour, begTime, cityFileName, siteFileName, outFileName, dftFileName, sectorNames
         NAMELIST /source/ obsInfo, mdlInfo, adjInfo, rawFileName
-        NAMELIST /default/ nTime, localisation, delta, radius, length, city, lowRank, inflation, vmin, vmax, r1, r2
+        NAMELIST /default/ nTime, localisation, delta, radius, length, city, lowRank, inflation, vmin, vmax, r1, r2, validR
 
         NAMELIST /custom/ opts
 
@@ -129,6 +130,7 @@ module mod_cfg
             if (opts(i)%vmax == 0.)  opts(i)%vmax = vmax
             if (opts(i)%r1 == 0.)  opts(i)%r1 = r1
             if (opts(i)%r2 == 0.)  opts(i)%r2 = r2
+            if (opts(i)%validR == 0.)  opts(i)%validR = validR
             if (.not. opts(i)%city)  opts(i)%city = city
             if (.not. opts(i)%lowRank)  opts(i)%lowRank = lowRank
             if (.not. opts(i)%inflation) opts(i)%inflation = inflation
@@ -155,14 +157,14 @@ module mod_cfg
             call log_notice('===================================================================')
             write(*, '(A, 10A10)') 'conc: ', (trim(p%obsInfo%varNames(j)), j = 1, p%obsInfo%nVar)
             write(*, '(A, 10A10)') 'emis: ', (trim(p%adjInfo%varNames(j)), j = 1, p%adjInfo%nVar)
-            write(*, '(15A10)') 'emis', 'emis-idx', 'conc', 'conc-idx', 'ratio', 'radius', 'length', 'nTime',  'vmin', 'vmax' , 'r1', 'r2'
+            write(*, '(15A10)') 'emis', 'emis-idx', 'conc', 'conc-idx', 'ratio', 'radius', 'length', 'nTime',  'vmin', 'vmax' , 'r1', 'r2', 'validR'
             do i = 1, p%nVar
                 do j = 1, p%opts(i)%nVar
                     write(*, '(15A10)') trim(p%opts(i)%name), to_str(p%opts(i)%idx), &
                     trim(p%opts(i)%varNames(j)), to_str(p%opts(i)%idxs(j)), to_str(p%opts(i)%ratio(j), 2, 3),  &
                     to_str(p%opts(i)%radius, 2, 9), to_str(p%opts(i)%length, 2, 9), to_str(p%opts(i)%nTime), &
                     to_str(p%opts(i)%vmin, 2, 7), to_str(p%opts(i)%vmax, 2, 9),&
-                    to_str(p%opts(i)%r1, 2, 7), to_str(p%opts(i)%r2, 2, 9)
+                    to_str(p%opts(i)%r1, 2, 7), to_str(p%opts(i)%r2, 2, 9), to_str(p%opts(i)%validR, 2, 9)
                 end do
             end do
             call log_notice('===================================================================')

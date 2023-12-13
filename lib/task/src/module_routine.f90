@@ -124,15 +124,15 @@ module mod_routine
                     
                     ! 判断相关系数: 去掉噪音
                     corr = get_coefficient(PE, mdl4d(1:nn, :, :, :))
-                    if ( abs(corr*decay) < 0.2 ) cycle ! 相关性弱的，就不考虑！
+                    if (abs(corr) < opt%validR) cycle ! 相关性弱的，就不考虑！
                     ! 有一些虚假负相关？剔除掉吧
                     if ( corr*decay <  opt%r1 .or. corr*decay > opt%r2 ) cycle
                     ! 模式的数值很小时, 偏差太大了
                     ! 排放能解释模式多大的变化: 模拟变化和误差之间的关系,
                     thisRate = get_change_rate(mdl4d(1:nn, :, :, :), thisObs)
 
-                    if (opt%city) write(*, '(A10, 10F8.4, 10F8.4)') patch%dcode(k), corr, thisRate ! 可能越界吗
-                    if (.not. opt%city) write(*, '(A10, 10F8.4, 10F8.4)') patch%cityIds(k), corr, thisRate ! 可能越界吗
+                    if (opt%city) write(*, '(A10, 10F8.4, 10F8.4, I5)') patch%dcode(k), corr, thisRate, i
+                    if (.not. opt%city) write(*, '(A10, 10F8.4, 10F8.4, I5)') patch%cityIds(k), corr, thisRate, i
                     ! 观测误差矩阵
                     idx = idx + 1
                     R_A(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差

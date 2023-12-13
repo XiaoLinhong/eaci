@@ -27,6 +27,7 @@ module mod_structure
         real :: vmax = 0. ! 调整的最大值
         real :: r1 = 0. ! 相关系数剔除下界
         real :: r2 = 0. ! 相关系数剔除上界
+        real :: validR = 0. ! 有效相关系数 abs(r) > validR
         integer :: nTime = 0 ! 多长时间平均
         integer :: localisation = 0 ! 距地化方案
         logical :: city = .false. ! 是否计算城市平均
