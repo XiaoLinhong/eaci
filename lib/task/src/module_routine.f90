@@ -131,8 +131,8 @@ module mod_routine
                     ! 排放能解释模式多大的变化: 模拟变化和误差之间的关系,
                     thisRate = get_change_rate(mdl4d(1:nn, :, :, :), thisObs)
 
-                    if (opt%city) write(*, '(A10, 10F8.4, 10F8.4, I5)') patch%dcode(k), corr, thisRate, i
-                    if (.not. opt%city) write(*, '(A10, 10F8.4, 10F8.4, I5)') patch%cityIds(k), corr, thisRate, i
+                    if (opt%city) write(*, '(I2, 2X, A10, 10F8.4, 10F8.4)') i, patch%dcode(k), corr, thisRate
+                    if (.not. opt%city) write(*, '(I2, 2X, A10, 10F8.4, 10F8.4)') i, patch%cityIds(k), corr, thisRate
                     ! 观测误差矩阵
                     idx = idx + 1
                     R_A(idx, idx) = thisObs*obsErr( opt%idxs(j) ) ! 观测误差
