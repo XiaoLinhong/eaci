@@ -349,9 +349,9 @@ module mod_routine
         if (thisMax /= 0 .and. n>0) then
             thisMean = sum(a1)/n
             if (present(thisObs)) then
-                rate = (sum((a1 - thisMean)**2)**0.5/n)/abs(thisMean - thisObs)
+                rate = (sum((a1 - thisMean)**2)/n)**0.5/abs(thisMean - thisObs)
             else
-                rate = (sum((a1 - thisMean)**2)**0.5/n)/thisMean
+                rate = (sum((a1 - thisMean)**2)/n)**0.5/thisMean
             end if
         end if
         ! 排放对观测的解释程度
